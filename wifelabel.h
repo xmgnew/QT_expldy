@@ -1,9 +1,13 @@
 #pragma once
+
 #include <QLabel>
 #include <QTimer>
 #include <QVector>
 #include <QPixmap>
 #include <QSize>
+#include <QPoint>
+#include <QMouseEvent>
+#include <QElapsedTimer>
 
 class WifeLabel : public QLabel
 {
@@ -19,6 +23,8 @@ public:
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
 
 private:
     enum class State { Idle, Happy, Hit };
@@ -38,4 +44,11 @@ private:
     static QPixmap normalizeFrame(const QPixmap& src, const QSize& targetSize);
 
     void setFrames(const QVector<QPixmap>& frames, int intervalMs);
+
+    // 拖动相关
+    bool dragging = false;
+    QPoint dragOffset;
+
+    // 撞边 hit 冷却
+    QElapsedTimer edgeHitCooldown;
 };
