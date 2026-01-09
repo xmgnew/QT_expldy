@@ -30,6 +30,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void paintEvent(QPaintEvent* e) override; // DEBUG专用
 
 private:
     enum class State { Idle, Happy, Angry, Dragging };
@@ -73,6 +74,7 @@ private:
     QPoint pressGlobalPos;
     QPoint labelStartPos;
     int dragThresholdPx = 8;
+    bool debugDrawBounds = true;  // DEBUG专用
 
     // 撞边 hit 冷却
     QElapsedTimer edgeHitCooldown;

@@ -588,3 +588,35 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     menu.exec(event->globalPos());
     event->accept();
 }
+
+// DEBUG专用
+void WifeLabel::paintEvent(QPaintEvent* e)
+{
+    QLabel::paintEvent(e);
+
+    if (!debugDrawBounds) return;
+
+    QWidget* p = parentWidget();
+    if (!p) return;
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+
+    // 画角色自身矩形（青色）
+    QPen selfPen(Qt::cyan);
+    selfPen.setWidth(2);
+    painter.setPen(selfPen);
+    painter.drawRect(rect().adjusted(1, 1, -2, -2));
+
+    // 写关键数值
+    const int maxX = p->width()  - width();
+    const int maxY = p->height() - height();
+
+    painter.setPen(Qt::white);
+    painter.drawText(10, 20,
+        QString("pos=(%1,%2) size=%3x%4 max=(%5,%6)")
+            .arg(x()).arg(y())
+            .arg(width()).arg(height())
+            .arg(maxX).arg(maxY)
+    );
+}
