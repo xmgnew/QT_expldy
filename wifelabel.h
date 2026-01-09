@@ -9,6 +9,7 @@
 #include <QPoint>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
+#include <QHash>
 
 class WifeLabel : public QLabel
 {
@@ -20,6 +21,7 @@ public:
 
     void playIdle();
     void playHappy();
+    void playAngry();
     void playHit(int ms = 200); // 短反馈：播 hit 后回到主状态
 
 protected:
@@ -29,21 +31,35 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
-    enum class State { Idle, Happy, Dragging };
-    State mainState = State::Idle; // 主状态（不会被 hit 短反馈打断）
+    enum class State { Idle, Happy, Angry, Dragging };
+    State mainState = State::Idle;
 
     QSize targetSize { 400, 600 };
 
-    QVector<QPixmap> idleFrames;
+    // Idle clip 系统：idle/ 下每个子目录是一个 clip
+    QHash<QString, QVector<QPixmap>> idleClips;
+    QString currentIdleClip;
+    QString lastIdleClip;
+    QVector<QPixmap> idleFrames; // currentIdleClip 对应的帧缓存（兼容旧逻辑）
+
     QVector<QPixmap> happyFrames;
+    QVector<QPixmap> angryFrames;
     QVector<QPixmap> hitFrames;
     QVector<QPixmap> draggingFrames;
 
     QVector<QPixmap> currentFrames;
     int frameIndex = 0;
-    QTimer frameTimer;
 
-    QString assetsRoot() const; // 自动定位 assets 目录
+    // Timer
+    QTimer frameTimer;
+    QTimer emotionTimer;     // Happy/Angry 用同一个 timer
+    QTimer idleSwitchTimer;  // Idle clip 切换
+
+    int idleSwitchIntervalMs() const; // 由 frequency 决定
+    void startOrStopIdleSwitchTimer();
+    void switchIdleClipRandom();
+
+    QString assetsRoot() const;
     QVector<QPixmap> loadFrames(const QString &dirPath) const;
     static QPixmap normalizeFrame(const QPixmap &src, const QSize &targetSize);
 
@@ -53,13 +69,17 @@ private:
     // 拖动（窗口内拖动 label）
     bool pressedLeft = false;
     bool dragging = false;
-    QPoint pressPosInLabel;
-    QPoint pressGlobalPos;   // 新增
+    QPoint pressGlobalPos;
     QPoint labelStartPos;
     int dragThresholdPx = 8;
 
-
-
-    // 撞边 hit 冷却（如果你还在用）
+    // 撞边 hit 冷却
     QElapsedTimer edgeHitCooldown;
+
+    // 右键菜单设置（先存值，里程碑5再接音频）
+    int volume = 70;       // 0-100
+    int frequency = 50;    // 0-100（说话频率/健谈程度）
+
+    void loadUserSettings();
+    void saveUserSettings() const;
 };
