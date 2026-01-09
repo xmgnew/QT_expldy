@@ -9,7 +9,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # 让 VS Code / clangd 能拿到编译参数（补全、跳转更稳）
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Widgets)
+# 兜底（Qt6 下 qt_standard_project_setup 通常会设置，但加上更稳）
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
 
 # Qt6 推荐：自动设置一些常用编译选项/警告/平台细节
 qt_standard_project_setup()
@@ -18,12 +23,17 @@ qt_add_executable(expldy
     main.cpp
     wifelabel.cpp
     wifelabel.h
+    audiomanager.h
+    audiomanager.cpp
 )
 
-target_link_libraries(expldy PRIVATE Qt6::Widgets)
+# ✅ 关键修复：把 Multimedia 链接进来
+target_link_libraries(expldy PRIVATE
+    Qt6::Widgets
+    Qt6::Multimedia
+)
 
 # 可选：对你这种桌宠/2D 小项目很实用
-# - 关闭控制台窗口：Windows 下运行时不弹黑框（需要 GUI 子系统）
 if (WIN32)
     set_target_properties(expldy PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()

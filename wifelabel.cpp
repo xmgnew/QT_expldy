@@ -13,6 +13,8 @@
 #include <QSlider>
 #include <QSettings>
 #include <QRandomGenerator>
+#include <QHBoxLayout>
+#include <QLabel>
 
 WifeLabel::WifeLabel(QWidget *parent)
     : QLabel(parent)
@@ -76,6 +78,7 @@ void WifeLabel::switchIdleClipRandom()
 {
     if (idleClips.isEmpty())
         return;
+    const QString beforeClip = currentIdleClip;
     if (idleClips.size() == 1)
     {
         auto keys = idleClips.keys();
@@ -109,13 +112,20 @@ void WifeLabel::switchIdleClipRandom()
         currentIdleClip = chosen;
     }
 
+    // 如果没有发生切换，就不播 idle 音频、不刷新
+    if (!beforeClip.isEmpty() && currentIdleClip == beforeClip)
+        return;
+
     idleFrames = idleClips.value(currentIdleClip);
     if (idleFrames.isEmpty())
         return;
 
     // 只有 idle 时才立刻切换画面；否则只更新缓存，等回 idle 再用
     if (mainState == State::Idle)
+    {
+        audio.playRandom("idle"); // 只在切换 idle clip 时播一次
         playMainState();
+    }
 }
 
 void WifeLabel::loadUserSettings()
@@ -270,6 +280,11 @@ bool WifeLabel::loadFromAssets()
     resize(idleFrames[0].size());
 
     startOrStopIdleSwitchTimer();
+
+    audio.setAssetsRoot(root); // root = assetsRoot()
+    audio.rebuildIndex();
+    audio.setVolume01(volume / 100.0);
+
     return true;
 }
 
@@ -316,6 +331,7 @@ void WifeLabel::playIdle()
 
 void WifeLabel::playHappy()
 {
+    audio.playRandom("happy");
     mainState = State::Happy;
     playMainState();
 
@@ -326,6 +342,7 @@ void WifeLabel::playHappy()
 
 void WifeLabel::playAngry()
 {
+    audio.playRandom("angry");
     mainState = State::Angry;
     playMainState();
 
@@ -336,6 +353,7 @@ void WifeLabel::playAngry()
 
 void WifeLabel::playHit(int ms)
 {
+    audio.playRandom("hit");
     if (hitFrames.isEmpty())
         return;
 
@@ -376,8 +394,8 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
         if (delta.manhattanLength() < dragThresholdPx)
             return;
         dragging = true;
-
         mainState = State::Dragging;
+        audio.playRandom("dragging");
         playMainState();
         emotionTimer.stop();
     }
@@ -465,45 +483,61 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     menu.addSeparator();
 
     // --- Audio 子菜单：Volume / Frequency sliders ---
-    QMenu *audio = menu.addMenu("Audio");
+    QMenu *audioMenu = menu.addMenu("Audio");
 
-    // Volume slider
+    // 一个小工具：创建“标题 + slider + 数字”的行
+    auto addLabeledSlider = [this, audioMenu](
+                                const QString &title,
+                                int minV, int maxV, int value,
+                                std::function<void(int)> onChanged)
     {
-        QWidgetAction *wa = new QWidgetAction(audio);
-        QSlider *slider = new QSlider(Qt::Horizontal);
-        slider->setRange(0, 100);
-        slider->setValue(volume);
+        QWidget *row = new QWidget(audioMenu);
+        auto *layout = new QHBoxLayout(row);
+        layout->setContentsMargins(8, 6, 8, 6);
+        layout->setSpacing(8);
+
+        QLabel *name = new QLabel(title, row);
+        name->setMinimumWidth(72);
+
+        QSlider *slider = new QSlider(Qt::Horizontal, row);
+        slider->setRange(minV, maxV);
+        slider->setValue(value);
         slider->setMinimumWidth(160);
-        wa->setDefaultWidget(slider);
-        audio->addAction(wa);
 
-        connect(slider, &QSlider::valueChanged, this, [this](int v)
+        QLabel *num = new QLabel(QString::number(value), row);
+        num->setMinimumWidth(32);
+        num->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        layout->addWidget(name);
+        layout->addWidget(slider, 1);
+        layout->addWidget(num);
+
+        QWidgetAction *wa = new QWidgetAction(audioMenu);
+        wa->setDefaultWidget(row);
+        audioMenu->addAction(wa);
+
+        // 联动：显示数字 + 业务逻辑
+        connect(slider, &QSlider::valueChanged, row, [num, onChanged](int v)
                 {
-                    volume = v;
-                    saveUserSettings();
-                    // 里程碑5：这里会同时把音频输出音量更新到 AudioManager
-                });
-    }
+        num->setText(QString::number(v));
+        onChanged(v); });
 
-    // Frequency slider
-    {
-        QWidgetAction *wa = new QWidgetAction(audio);
-        QSlider *slider = new QSlider(Qt::Horizontal);
-        slider->setRange(0, 100);
-        slider->setValue(frequency);
-        slider->setMinimumWidth(160);
-        wa->setDefaultWidget(slider);
-        audio->addAction(wa);
+        return slider;
+    };
 
-        connect(slider, &QSlider::valueChanged, this, [this](int v)
-                {
-                    frequency = v;
-                    saveUserSettings();
-                    // 里程碑5：这里会更新“随机语音间隔策略”
+    // Volume（0-100）
+    addLabeledSlider("Volume", 0, 100, volume, [this](int v)
+                     {
+    volume = v;
+    saveUserSettings();
+    audio.setVolume01(volume / 100.0); });
 
-                    // 先实现 idle clip 的切换策略
-                    startOrStopIdleSwitchTimer(); });
-    }
+    // Frequency（0-100）
+    addLabeledSlider("Frequency", 0, 100, frequency, [this](int v)
+                     {
+    frequency = v;
+    saveUserSettings();
+    startOrStopIdleSwitchTimer(); });
 
     menu.addSeparator();
 

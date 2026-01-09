@@ -10,6 +10,7 @@
 #include <QMouseEvent>
 #include <QContextMenuEvent>
 #include <QHash>
+#include "audiomanager.h"
 
 class WifeLabel : public QLabel
 {
@@ -79,6 +80,7 @@ private:
     // 右键菜单设置（先存值，里程碑5再接音频）
     int volume = 70;       // 0-100
     int frequency = 50;    // 0-100（说话频率/健谈程度）
+    AudioManager audio;
 
     void loadUserSettings();
     void saveUserSettings() const;
