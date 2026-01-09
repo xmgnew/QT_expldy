@@ -146,7 +146,7 @@ void WifeLabel::switchIdleClipRandom()
 
 void WifeLabel::loadUserSettings()
 {
-    // 组织名/应用名随便定
+    // 组织名/应用名
     QSettings s("expldy", "expldy");
     volume = s.value("audio/volume", 70).toInt();
     frequency = s.value("audio/frequency", 50).toInt();
@@ -387,7 +387,7 @@ void WifeLabel::mousePressEvent(QMouseEvent *event)
         dragging = false;
 
         pressGlobalPos = event->globalPosition().toPoint();
-        dragOffset = event->position().toPoint(); // 记录鼠标在控件内的偏移
+        labelStartPos = pos();
 
         playHit(200); // 轻触反馈
     }
@@ -397,18 +397,18 @@ void WifeLabel::mousePressEvent(QMouseEvent *event)
 
 void WifeLabel::mouseMoveEvent(QMouseEvent *event)
 {
-    if (!pressedLeft) return;
-    if (!(event->buttons() & Qt::LeftButton)) return;
+    if (!pressedLeft)
+        return;
+    if (!(event->buttons() & Qt::LeftButton))
+        return;
 
-    // --- 拖拽阈值判定（保留原来的手感） ---
-    const QPoint nowGlobal = event->globalPosition().toPoint();
+    QPoint nowGlobal = event->globalPosition().toPoint();
+    QPoint delta = nowGlobal - pressGlobalPos;
 
-    // 用 global delta 只是为了判定是否开始拖拽（不用于最终坐标）
-    const QPoint deltaForThreshold = nowGlobal - pressGlobalPos;
-    if (!dragging) {
-        if (deltaForThreshold.manhattanLength() < dragThresholdPx)
+    if (!dragging)
+    {
+        if (delta.manhattanLength() < dragThresholdPx)
             return;
-
         dragging = true;
         mainState = State::Dragging;
         audio.playRandom("dragging");
@@ -416,37 +416,32 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
         emotionTimer.stop();
     }
 
+    QPoint newPos = labelStartPos + delta;
+
     QWidget *p = parentWidget();
-    if (!p) return;
+    if (!p)
+    {
+        move(newPos);
+        return;
+    }
 
-    // --- 核心修复：global -> parent 坐标 ---
-    // 鼠标全局坐标减去“鼠标在控件内的偏移” = 控件左上角的全局坐标
-    const QPoint newTopLeftGlobal = nowGlobal - dragOffset;
-
-    // 转到 parent 的坐标系
-    QPoint newPos = p->mapFromGlobal(newTopLeftGlobal);
-
-    // --- clamp 到 parent 客户区范围 ---
     int minX = 0, minY = 0;
-    int maxX = p->width()  - width();
+    int maxX = p->width() - width();
     int maxY = p->height() - height();
-    if (maxX < minX) maxX = minX;
-    if (maxY < minY) maxY = minY;
+    if (maxX < minX)
+        maxX = minX;
+    if (maxY < minY)
+        maxY = minY;
 
-    QPoint rawPos = newPos;
+    bool hitEdge =
+        (newPos.x() <= minX) || (newPos.x() >= maxX) ||
+        (newPos.y() <= minY) || (newPos.y() >= maxY);
+
     newPos.setX(std::clamp(newPos.x(), minX, maxX));
     newPos.setY(std::clamp(newPos.y(), minY, maxY));
 
-    const bool canMoveX = (maxX > minX);
-    const bool canMoveY = (maxY > minY);
+    move(newPos);
 
-    const bool hitEdge =
-        (canMoveX && newPos.x() != rawPos.x()) ||
-        (canMoveY && newPos.y() != rawPos.y());
-
-    move(newPos);   // 只 move 一次（去掉原来重复 move）
-
-    // 撞边冷却
     const int cooldownMs = 500;
     if (hitEdge && edgeHitCooldown.elapsed() > cooldownMs)
     {
@@ -454,7 +449,6 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
         playHit(300);
     }
 }
-
 
 void WifeLabel::mouseReleaseEvent(QMouseEvent *event)
 {
