@@ -33,7 +33,7 @@ target_link_libraries(expldy PRIVATE
     Qt6::Multimedia
 )
 
-# 可选：对你这种桌宠/2D 小项目很实用
+# 可选：对这种桌宠/2D 小项目很实用
 if (WIN32)
     set_target_properties(expldy PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()

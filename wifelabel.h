@@ -69,6 +69,7 @@ private:
 
     // 拖动（窗口内拖动 label）
     bool pressedLeft = false;
+    QPoint dragOffset;
     bool dragging = false;
     QPoint pressGlobalPos;
     QPoint labelStartPos;

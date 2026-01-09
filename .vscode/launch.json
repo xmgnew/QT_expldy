@@ -2,16 +2,36 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run expldy (cwd=workspace)",
+      "name": "Run expldy (Linux / gdb)",
       "type": "cppdbg",
       "request": "launch",
       "program": "${command:cmake.launchTargetPath}",
       "args": [],
-      "cwd": "${workspaceFolder}",
+      "cwd": "${command:cmake.launchTargetDirectory}",
       "stopAtEntry": false,
       "environment": [],
       "externalConsole": false,
       "MIMode": "gdb"
+    },
+    {
+      "name": "Run expldy (Windows / MSVC)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${command:cmake.launchTargetPath}",
+      "args": [],
+      "cwd": "${command:cmake.launchTargetDirectory}",
+      "stopAtEntry": false,
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "C:\\Qt\\6.10.1\\msvc2022_64\\bin;${env:PATH}"
+        },
+        {
+          "name": "QT_PLUGIN_PATH",
+          "value": "C:\\Qt\\6.10.1\\msvc2022_64\\plugins"
+        }
+      ],
+      "console": "integratedTerminal"
     }
   ]
 }
