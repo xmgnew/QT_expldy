@@ -43,6 +43,22 @@ WifeLabel::WifeLabel(QWidget *parent)
                 // 只在 idle 时允许切换（否则会打断交互状态）
                 if (mainState == State::Idle)
                     switchIdleClipRandom(); });
+
+    // 启动后应用一次“置顶”设置（不依赖 main.cpp）
+    QTimer::singleShot(0, this, [this]()
+                       {
+    QSettings s("expldy", "expldy");
+    const bool onTop = s.value("ui/alwaysOnTop", false).toBool();
+
+    QWidget* w = window();
+    if (!w) return;
+
+    Qt::WindowFlags f = w->windowFlags();
+    if (onTop) f |= Qt::WindowStaysOnTopHint;
+    else       f &= ~Qt::WindowStaysOnTopHint;
+
+    w->setWindowFlags(f);
+    w->show(); });
 }
 
 int WifeLabel::idleSwitchIntervalMs() const
@@ -481,6 +497,30 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
         playHappy(); });
 
     menu.addSeparator();
+
+    menu.addSeparator();
+
+    QAction *onTopAct = menu.addAction("Always on top");
+    onTopAct->setCheckable(true);
+
+    QSettings s("expldy", "expldy");
+    const bool onTop = s.value("ui/alwaysOnTop", false).toBool();
+    onTopAct->setChecked(onTop);
+
+    connect(onTopAct, &QAction::toggled, this, [this](bool checked)
+            {
+    QSettings s("expldy", "expldy");
+    s.setValue("ui/alwaysOnTop", checked);
+
+    QWidget* w = window();
+    if (!w) return;
+
+    Qt::WindowFlags f = w->windowFlags();
+    if (checked) f |= Qt::WindowStaysOnTopHint;
+    else         f &= ~Qt::WindowStaysOnTopHint;
+
+    w->setWindowFlags(f);
+    w->show(); });
 
     // --- Audio 子菜单：Volume / Frequency sliders ---
     QMenu *audioMenu = menu.addMenu("Audio");
