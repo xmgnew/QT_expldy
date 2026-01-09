@@ -612,7 +612,7 @@ void WifeLabel::paintEvent(QPaintEvent* e)
     const int maxX = p->width()  - width();
     const int maxY = p->height() - height();
 
-    painter.setPen(Qt::white);
+    painter.setPen(Qt::black);
     painter.drawText(10, 20,
         QString("pos=(%1,%2) size=%3x%4 max=(%5,%6)")
             .arg(x()).arg(y())
