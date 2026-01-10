@@ -35,7 +35,7 @@ qt_add_executable(expldy
     animateditembutton.cpp
 )
 
-# ✅ 关键修复：把 Multimedia 链接进来
+# 把 Multimedia 链接进来
 target_link_libraries(expldy PRIVATE
     Qt6::Widgets
     Qt6::Multimedia

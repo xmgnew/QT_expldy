@@ -1,10 +1,10 @@
 #include "animateditembutton.h"
 #include <QIcon>
 
-AnimatedItemButton::AnimatedItemButton(const QString& itemId,
-                                       const QVector<QPixmap>& f,
+AnimatedItemButton::AnimatedItemButton(const QString &itemId,
+                                       const QVector<QPixmap> &f,
                                        int intervalMs,
-                                       QWidget* parent)
+                                       QWidget *parent)
     : QPushButton(parent), id(itemId), frames(f)
 {
     setMinimumSize(72, 72);
@@ -13,18 +13,20 @@ AnimatedItemButton::AnimatedItemButton(const QString& itemId,
 
     refreshIcon();
 
-    if (frames.size() > 1) {
+    if (frames.size() > 1)
+    {
         timer.start(intervalMs);
-        connect(&timer, &QTimer::timeout, this, [this]() {
+        connect(&timer, &QTimer::timeout, this, [this]()
+                {
             idx = (idx + 1) % frames.size();
-            refreshIcon();
-        });
+            refreshIcon(); });
     }
 }
 
 void AnimatedItemButton::refreshIcon()
 {
-    if (frames.isEmpty()) return;
+    if (frames.isEmpty())
+        return;
     setIcon(QIcon(frames[idx]));
-    setIconSize(QSize(56,56));
+    setIconSize(QSize(56, 56));
 }

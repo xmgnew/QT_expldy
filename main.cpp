@@ -18,8 +18,7 @@ int main(int argc, char *argv[])
     // 初始居中（窗口内拖动）
     wife->move(
         (window.width() - wife->width()) / 2,
-        (window.height() - wife->height()) / 2
-    );
+        (window.height() - wife->height()) / 2);
 
     window.show();
     return app.exec();

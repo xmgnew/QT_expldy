@@ -6,23 +6,24 @@
 #include <QVector>
 #include <QPixmap>
 
-class ItemWidget : public QLabel {
+class ItemWidget : public QLabel
+{
     Q_OBJECT
 public:
-    explicit ItemWidget(const QString& itemId,
-                        const QVector<QPixmap>& frames,
+    explicit ItemWidget(const QString &itemId,
+                        const QVector<QPixmap> &frames,
                         int intervalMs,
-                        QWidget* parent = nullptr);
+                        QWidget *parent = nullptr);
 
     QString itemId() const { return id; }
 
 signals:
-    void dropped(ItemWidget* item);
+    void dropped(ItemWidget *item);
 
 protected:
-    void mousePressEvent(QMouseEvent* e) override;
-    void mouseMoveEvent(QMouseEvent* e) override;
-    void mouseReleaseEvent(QMouseEvent* e) override;
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
 
 private:
     QString id;

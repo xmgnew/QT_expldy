@@ -37,14 +37,13 @@ WifeLabel::WifeLabel(QWidget *parent)
                 {
                     mainState = State::Idle;
                     playMainState();
-                }
-            });
+                } });
 
     // idle clip 随机切换：只在 Idle 时触发
-    connect(&idleSwitchTimer, &QTimer::timeout, this, [this]() {
+    connect(&idleSwitchTimer, &QTimer::timeout, this, [this]()
+            {
         if (mainState == State::Idle)
-            switchIdleClipRandom(true);
-    });
+            switchIdleClipRandom(true); });
 }
 
 int WifeLabel::idleSwitchIntervalMs() const
@@ -65,7 +64,8 @@ int WifeLabel::idleSwitchIntervalMs() const
 void WifeLabel::startOrStopIdleSwitchTimer()
 {
     const int ms = idleSwitchIntervalMs();
-    if (ms < 0) {
+    if (ms < 0)
+    {
         idleSwitchTimer.stop();
         return;
     }
@@ -78,23 +78,29 @@ void WifeLabel::switchIdleClipRandom(bool playVoice)
         return;
 
     // 只有一个 clip：固定
-    if (idleClips.size() == 1) {
+    if (idleClips.size() == 1)
+    {
         auto keys = idleClips.keys();
         std::sort(keys.begin(), keys.end());
         currentIdleClip = keys.first();
-    } else {
+    }
+    else
+    {
         QString chosen;
         const auto keys = idleClips.keys();
         // 尽量避免连续重复：最多尝试 10 次
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < 10; ++i)
+        {
             const int idx = QRandomGenerator::global()->bounded(keys.size());
             const QString k = keys.at(idx);
-            if (k != currentIdleClip) {
+            if (k != currentIdleClip)
+            {
                 chosen = k;
                 break;
             }
         }
-        if (chosen.isEmpty()) {
+        if (chosen.isEmpty())
+        {
             // 兜底：选一个不同的
             const int cur = keys.indexOf(currentIdleClip);
             chosen = keys.at((cur + 1 + keys.size()) % keys.size());
@@ -284,15 +290,17 @@ bool WifeLabel::loadFromAssets()
     return true;
 }
 
-void WifeLabel::spawnItem(const QString& itemId)
+void WifeLabel::spawnItem(const QString &itemId)
 {
-    QWidget* w = window();
-    if (!w) return;
+    QWidget *w = window();
+    if (!w)
+        return;
 
-    const ItemDef* def = itemDB.get(itemId);
-    if (!def) return;
+    const ItemDef *def = itemDB.get(itemId);
+    if (!def)
+        return;
 
-    auto* item = new ItemWidget(def->id, def->frames, def->frameIntervalMs, w);
+    auto *item = new ItemWidget(def->id, def->frames, def->frameIntervalMs, w);
 
     // 默认生成在角色旁边（右下角一点）
     QPoint p = this->mapTo(w, QPoint(width() - 20, height() - 20));
@@ -302,9 +310,8 @@ void WifeLabel::spawnItem(const QString& itemId)
     item->raise();
 
     // 阶段2：拖拽物品松手时，判定是否“使用在角色身上”
-    connect(item, &ItemWidget::dropped, this, [this](ItemWidget* it){
-        handleItemDropped(it);
-    });
+    connect(item, &ItemWidget::dropped, this, [this](ItemWidget *it)
+            { handleItemDropped(it); });
 
     // 可选：spawn 音效（不影响阶段2“使用食物”测试）
     if (def->audio.contains("item_spawn"))
@@ -315,29 +322,34 @@ void WifeLabel::spawnItem(const QString& itemId)
         audio.playVoice(def->audio.value("actor_spawn"));
 }
 
-void WifeLabel::handleItemDropped(ItemWidget* item)
+void WifeLabel::handleItemDropped(ItemWidget *item)
 {
-    if (!item) return;
+    if (!item)
+        return;
 
-    QWidget* w = window();
-    if (!w) return;
+    QWidget *w = window();
+    if (!w)
+        return;
 
-    const ItemDef* def = itemDB.get(item->itemId());
-    if (!def) return;
+    const ItemDef *def = itemDB.get(item->itemId());
+    if (!def)
+        return;
 
     // 角色在 window 坐标系下的矩形
-    const QRect wifeRect(mapTo(w, QPoint(0,0)), size());
+    const QRect wifeRect(mapTo(w, QPoint(0, 0)), size());
     const QRect itemRect(item->pos(), item->size());
 
     const bool onWife = wifeRect.intersects(itemRect);
-    if (!onWife) return;
+    if (!onWife)
+        return;
 
     // 阶段2（v0）：只实现 food 的“喂到身上就吃掉”
-    if (def->type != ItemType::Food) return;
+    if (def->type != ItemType::Food)
+        return;
 
     // 播放：角色音效 + 物品音效（可同时响，因为是不同通道）
     const QString actorCat = def->audio.value("actor_use");
-    const QString itemCat  = def->audio.value("item_use");
+    const QString itemCat = def->audio.value("item_use");
 
     if (!actorCat.isEmpty())
         audio.playVoice(actorCat);
@@ -351,7 +363,6 @@ void WifeLabel::handleItemDropped(ItemWidget* item)
     // 物品消失
     item->deleteLater();
 }
-
 
 void WifeLabel::setFrames(const QVector<QPixmap> &frames, int intervalMs)
 {
@@ -429,8 +440,6 @@ void WifeLabel::playEat()
     happyTimer.start(durationMs);
 }
 
-
-
 void WifeLabel::playHit(int ms)
 {
     audio.playRandom("hit");
@@ -478,7 +487,7 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
         mainState = State::Dragging;
         audio.playRandom("dragging");
         playMainState();
-        happyTimer.stop(); 
+        happyTimer.stop();
     }
 
     QPoint newPos = labelStartPos + delta;
@@ -507,7 +516,7 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
 
     move(newPos);
 
-    const int cooldownMs = 1000;
+    const int cooldownMs = 600;
     if (hitEdge && edgeHitCooldown.elapsed() > cooldownMs)
     {
         edgeHitCooldown.restart();
@@ -541,8 +550,9 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     QMenu menu(this);
 
     // Inventory
-    QAction* inv = menu.addAction("Inventory...");
-    connect(inv, &QAction::triggered, this, [this]() {
+    QAction *inv = menu.addAction("Inventory...");
+    connect(inv, &QAction::triggered, this, [this]()
+            {
         if (!inventoryDlg) {
             inventoryDlg = new InventoryDialog(window());
             inventoryDlg->setDB(&itemDB);
@@ -556,8 +566,7 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
 
         inventoryDlg->show();
         inventoryDlg->raise();
-        inventoryDlg->activateWindow();
-    });
+        inventoryDlg->activateWindow(); });
 
     // --- Interact 子菜单 ---
     QMenu *interact = menu.addMenu("Interact");
@@ -602,8 +611,7 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
                 {
                     volume = v;
                     saveUserSettings();
-                    audio.setVolume01(volume / 100.0);
-                });
+                    audio.setVolume01(volume / 100.0); });
     }
 
     // Frequency slider
@@ -621,8 +629,7 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
                     frequency = v;
                     saveUserSettings();
                     // frequency 控制 idle clip 随机切换间隔
-                    startOrStopIdleSwitchTimer();
-                });
+                    startOrStopIdleSwitchTimer(); });
     }
 
     menu.addSeparator();

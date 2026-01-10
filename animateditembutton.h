@@ -4,12 +4,13 @@
 #include <QPixmap>
 #include <QTimer>
 
-class AnimatedItemButton : public QPushButton {
+class AnimatedItemButton : public QPushButton
+{
 public:
-    AnimatedItemButton(const QString& itemId,
-                       const QVector<QPixmap>& frames,
+    AnimatedItemButton(const QString &itemId,
+                       const QVector<QPixmap> &frames,
                        int intervalMs,
-                       QWidget* parent=nullptr);
+                       QWidget *parent = nullptr);
 
     QString itemId() const { return id; }
 

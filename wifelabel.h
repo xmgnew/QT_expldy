@@ -39,10 +39,17 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
-    enum class State { Idle, Happy, Angry, Eat, Dragging };
+    enum class State
+    {
+        Idle,
+        Happy,
+        Angry,
+        Eat,
+        Dragging
+    };
     State mainState = State::Idle;
 
-    QSize targetSize { 400, 600 };
+    QSize targetSize{400, 600};
 
     QVector<QPixmap> idleFrames;
     // Idle clip 系统：idle/ 下每个子文件夹 = 一个 clip
@@ -67,10 +74,10 @@ private:
     // 阶段1：音频（三通道）+ 物品库 + 物品栏
     AudioManager audio;
     ItemDB itemDB;
-    InventoryDialog* inventoryDlg = nullptr;
+    InventoryDialog *inventoryDlg = nullptr;
 
-    void spawnItem(const QString& itemId);
-    void handleItemDropped(ItemWidget* item);
+    void spawnItem(const QString &itemId);
+    void handleItemDropped(ItemWidget *item);
 
     QString assetsRoot() const;
     QVector<QPixmap> loadFrames(const QString &dirPath) const;
@@ -94,8 +101,8 @@ private:
     QElapsedTimer edgeHitCooldown;
 
     // 右键菜单设置（先存值，里程碑5再接音频）
-    int volume = 70;       // 0-100
-    int frequency = 50;    // 0-100（说话频率/健谈程度）
+    int volume = 70;    // 0-100
+    int frequency = 50; // 0-100（说话频率/健谈程度）
 
     void loadUserSettings();
     void saveUserSettings() const;

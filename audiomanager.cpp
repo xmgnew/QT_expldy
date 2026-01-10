@@ -6,7 +6,7 @@
 #include <QUrl>
 #include <algorithm>
 
-AudioManager::AudioManager(QObject* parent) : QObject(parent)
+AudioManager::AudioManager(QObject *parent) : QObject(parent)
 {
     voicePlayer.setAudioOutput(&voiceOut);
     sfxPlayer.setAudioOutput(&sfxOut);
@@ -26,36 +26,39 @@ void AudioManager::setVolume01(double v01)
     enemyOut.setVolume(float(boosted));
 }
 
-void AudioManager::setAssetsRoot(const QString& assetsRoot)
+void AudioManager::setAssetsRoot(const QString &assetsRoot)
 {
     root = assetsRoot;
 }
 
-QStringList AudioManager::scanAudioFiles(const QString& dirPath) const
+QStringList AudioManager::scanAudioFiles(const QString &dirPath) const
 {
     QStringList out;
     QDir dir(dirPath);
-    if (!dir.exists()) return out;
+    if (!dir.exists())
+        return out;
 
     const QFileInfoList files = dir.entryInfoList(
-        {"*.wav","*.WAV","*.ogg","*.OGG","*.mp3","*.MP3"},
+        {"*.wav", "*.WAV", "*.ogg", "*.OGG", "*.mp3", "*.MP3"},
         QDir::Files, QDir::Name);
 
-    for (const auto& fi : files)
+    for (const auto &fi : files)
         out << fi.absoluteFilePath();
 
     return out;
 }
 
-void AudioManager::rebuildBankFromDir(QHash<QString, QStringList>& outBank, const QString& baseDir)
+void AudioManager::rebuildBankFromDir(QHash<QString, QStringList> &outBank, const QString &baseDir)
 {
     outBank.clear();
     QDir base(baseDir);
-    if (!base.exists()) return;
+    if (!base.exists())
+        return;
 
     // 每个子目录就是一个 category
     const QFileInfoList dirs = base.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const auto& d : dirs) {
+    for (const auto &d : dirs)
+    {
         const QString category = d.fileName();
         const QStringList files = scanAudioFiles(d.absoluteFilePath());
         if (!files.isEmpty())
@@ -68,7 +71,8 @@ void AudioManager::rebuildIndex()
     voiceBank.clear();
     sfxBank.clear();
     enemyBank.clear();
-    if (root.isEmpty()) return;
+    if (root.isEmpty())
+        return;
 
     const QString audioBase = QDir(root).filePath("audio");
     rebuildBankFromDir(voiceBank, QDir(audioBase).filePath("wife"));
@@ -83,10 +87,11 @@ void AudioManager::stop()
     enemyPlayer.stop();
 }
 
-void AudioManager::playFromBank(QMediaPlayer& p, const QHash<QString, QStringList>& bank, const QString& category)
+void AudioManager::playFromBank(QMediaPlayer &p, const QHash<QString, QStringList> &bank, const QString &category)
 {
     const auto list = bank.value(category);
-    if (list.isEmpty()) return;
+    if (list.isEmpty())
+        return;
 
     const int idx = QRandomGenerator::global()->bounded(list.size());
     const QString path = list.at(idx);
@@ -96,22 +101,22 @@ void AudioManager::playFromBank(QMediaPlayer& p, const QHash<QString, QStringLis
     p.play();
 }
 
-void AudioManager::playVoice(const QString& category)
+void AudioManager::playVoice(const QString &category)
 {
     playFromBank(voicePlayer, voiceBank, category);
 }
 
-void AudioManager::playSfx(const QString& category)
+void AudioManager::playSfx(const QString &category)
 {
     playFromBank(sfxPlayer, sfxBank, category);
 }
 
-void AudioManager::playEnemy(const QString& category)
+void AudioManager::playEnemy(const QString &category)
 {
     playFromBank(enemyPlayer, enemyBank, category);
 }
 
-void AudioManager::playRandom(const QString& category)
+void AudioManager::playRandom(const QString &category)
 {
     // 兼容旧调用：默认走 Voice
     playVoice(category);
