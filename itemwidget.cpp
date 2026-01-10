@@ -54,6 +54,7 @@ void ItemWidget::mouseReleaseEvent(QMouseEvent* e)
 {
     if (e->button() == Qt::LeftButton) {
         pressed = false;
+        emit dropped(this);
     }
     QLabel::mouseReleaseEvent(e);
 }

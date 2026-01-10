@@ -5,7 +5,7 @@
   "frame_interval_ms": 120,
   "audio": {
     "actor_use": "eat",
-    "item_use": "meat_use"
+    "item_use": "food_use"
   },
   "stats": {
     "heal": 6

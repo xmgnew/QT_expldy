@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     window.resize(800, 600);
 
     auto *wife = new WifeLabel(&window);
-    wife->setTargetSize(QSize(400, 600));
+    wife->setTargetSize(QSize(200, 200));
     wife->loadFromAssets();
     wife->playIdle();
 

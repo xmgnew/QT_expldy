@@ -7,12 +7,16 @@
 #include <QPixmap>
 #include <QSize>
 #include <QPoint>
+#include <QHash>
+#include <QString>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
 
 #include "audiomanager.h"
 #include "itemdb.h"
 #include "inventorydialog.h"
+
+class ItemWidget;
 
 class WifeLabel : public QLabel
 {
@@ -25,6 +29,7 @@ public:
     void playIdle();
     void playHappy();
     void playAngry();
+    void playEat();
     void playHit(int ms = 200); // 短反馈：播 hit 后回到主状态
 
 protected:
@@ -34,14 +39,20 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
-    enum class State { Idle, Happy, Angry, Dragging };
+    enum class State { Idle, Happy, Angry, Eat, Dragging };
     State mainState = State::Idle;
 
     QSize targetSize { 400, 600 };
 
     QVector<QPixmap> idleFrames;
+    // Idle clip 系统：idle/ 下每个子文件夹 = 一个 clip
+    QHash<QString, QVector<QPixmap>> idleClips;
+    QString currentIdleClip;
+    QString lastIdleClip;
+
     QVector<QPixmap> happyFrames;
     QVector<QPixmap> angryFrames;
+    QVector<QPixmap> eatFrames;
     QVector<QPixmap> hitFrames;
     QVector<QPixmap> draggingFrames;
 
@@ -51,6 +62,7 @@ private:
     // Timer
     QTimer frameTimer;
     QTimer happyTimer;
+    QTimer idleSwitchTimer;
 
     // 阶段1：音频（三通道）+ 物品库 + 物品栏
     AudioManager audio;
@@ -58,6 +70,7 @@ private:
     InventoryDialog* inventoryDlg = nullptr;
 
     void spawnItem(const QString& itemId);
+    void handleItemDropped(ItemWidget* item);
 
     QString assetsRoot() const;
     QVector<QPixmap> loadFrames(const QString &dirPath) const;
@@ -65,6 +78,10 @@ private:
 
     void setFrames(const QVector<QPixmap> &frames, int intervalMs);
     void playMainState();
+
+    int idleSwitchIntervalMs() const;
+    void startOrStopIdleSwitchTimer();
+    void switchIdleClipRandom(bool playVoice = true);
 
     // 拖动（窗口内拖动 label）
     bool pressedLeft = false;

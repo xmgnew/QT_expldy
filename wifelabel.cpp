@@ -33,12 +33,88 @@ WifeLabel::WifeLabel(QWidget *parent)
     connect(&happyTimer, &QTimer::timeout, this, [this]()
             {
                 // 只有仍然处于短情绪态才回 idle（避免被别的状态覆盖）
-                if (mainState == State::Happy || mainState == State::Angry)
+                if (mainState == State::Happy || mainState == State::Angry || mainState == State::Eat)
                 {
                     mainState = State::Idle;
                     playMainState();
                 }
             });
+
+    // idle clip 随机切换：只在 Idle 时触发
+    connect(&idleSwitchTimer, &QTimer::timeout, this, [this]() {
+        if (mainState == State::Idle)
+            switchIdleClipRandom(true);
+    });
+}
+
+int WifeLabel::idleSwitchIntervalMs() const
+{
+    // frequency: 0-100
+    // 0 代表完全不切换；1-100 映射到一个“从慢到快”的切换间隔
+    if (frequency <= 0)
+        return -1;
+
+    const int f = std::clamp(frequency, 1, 100);
+    const int slowMs = 20000;
+    const int fastMs = 2000;
+    const double t = (f - 1) / 99.0;
+    const int ms = int(slowMs + (fastMs - slowMs) * t);
+    return std::clamp(ms, fastMs, slowMs);
+}
+
+void WifeLabel::startOrStopIdleSwitchTimer()
+{
+    const int ms = idleSwitchIntervalMs();
+    if (ms < 0) {
+        idleSwitchTimer.stop();
+        return;
+    }
+    idleSwitchTimer.start(ms);
+}
+
+void WifeLabel::switchIdleClipRandom(bool playVoice)
+{
+    if (idleClips.isEmpty())
+        return;
+
+    // 只有一个 clip：固定
+    if (idleClips.size() == 1) {
+        auto keys = idleClips.keys();
+        std::sort(keys.begin(), keys.end());
+        currentIdleClip = keys.first();
+    } else {
+        QString chosen;
+        const auto keys = idleClips.keys();
+        // 尽量避免连续重复：最多尝试 10 次
+        for (int i = 0; i < 10; ++i) {
+            const int idx = QRandomGenerator::global()->bounded(keys.size());
+            const QString k = keys.at(idx);
+            if (k != currentIdleClip) {
+                chosen = k;
+                break;
+            }
+        }
+        if (chosen.isEmpty()) {
+            // 兜底：选一个不同的
+            const int cur = keys.indexOf(currentIdleClip);
+            chosen = keys.at((cur + 1 + keys.size()) % keys.size());
+        }
+        lastIdleClip = currentIdleClip;
+        currentIdleClip = chosen;
+    }
+
+    const auto frames = idleClips.value(currentIdleClip);
+    if (frames.isEmpty())
+        return;
+
+    idleFrames = frames;
+
+    // 切换 clip 时播放 idle 语音（只在 idle 态生效）
+    if (playVoice && mainState == State::Idle)
+        audio.playVoice("idle");
+
+    if (mainState == State::Idle)
+        playMainState();
 }
 
 void WifeLabel::loadUserSettings()
@@ -132,22 +208,57 @@ bool WifeLabel::loadFromAssets()
     }
 
     const QString base = QDir(root).filePath("wife");
-    idleFrames = loadFrames(QDir(base).filePath("idle"));
+
+    // --- Idle clips ---
+    idleClips.clear();
+    currentIdleClip.clear();
+    lastIdleClip.clear();
+    {
+        QDir idleDir(QDir(base).filePath("idle"));
+        if (idleDir.exists())
+        {
+            const QFileInfoList clipDirs = idleDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            for (const auto &fi : clipDirs)
+            {
+                const QString clipName = fi.fileName();
+                const auto frames = loadFrames(fi.absoluteFilePath());
+                if (!frames.isEmpty())
+                    idleClips.insert(clipName, frames);
+            }
+
+            // 兼容：如果 idle/ 下直接放了 png，也当成一个 clip("default")
+            const auto directFrames = loadFrames(idleDir.absolutePath());
+            if (!directFrames.isEmpty() && !idleClips.contains("default"))
+                idleClips.insert("default", directFrames);
+        }
+    }
+
+    if (!idleClips.isEmpty())
+    {
+        auto keys = idleClips.keys();
+        std::sort(keys.begin(), keys.end());
+        currentIdleClip = keys.first();
+        idleFrames = idleClips.value(currentIdleClip);
+    }
+
     happyFrames = loadFrames(QDir(base).filePath("happy"));
     angryFrames = loadFrames(QDir(base).filePath("angry"));
+    eatFrames = loadFrames(QDir(base).filePath("eat"));
     hitFrames = loadFrames(QDir(base).filePath("hit"));
     draggingFrames = loadFrames(QDir(base).filePath("dragging"));
 
     qDebug() << "assetsRoot =" << root
-             << "idle=" << idleFrames.size()
+             << "idleClips=" << idleClips.size()
+             << "idleFrames=" << idleFrames.size() << "(clip" << currentIdleClip << ")"
              << "happy=" << happyFrames.size()
              << "angry=" << angryFrames.size()
+             << "eat=" << eatFrames.size()
              << "hit=" << hitFrames.size()
              << "dragging=" << draggingFrames.size();
 
     if (idleFrames.isEmpty())
     {
-        setText("No idle frames in assets/wife/idle");
+        setText("No idle clips in assets/wife/idle/<clip>/000.png");
         adjustSize();
         return false;
     }
@@ -166,6 +277,9 @@ bool WifeLabel::loadFromAssets()
 
     // 物品帧尺寸：先统一 64x64（后续可做成设置）
     itemDB.load(root, QSize(64, 64));
+
+    // 让 idle 随机切换策略立即生效
+    startOrStopIdleSwitchTimer();
 
     return true;
 }
@@ -187,6 +301,11 @@ void WifeLabel::spawnItem(const QString& itemId)
     item->show();
     item->raise();
 
+    // 阶段2：拖拽物品松手时，判定是否“使用在角色身上”
+    connect(item, &ItemWidget::dropped, this, [this](ItemWidget* it){
+        handleItemDropped(it);
+    });
+
     // 可选：spawn 音效（不影响阶段2“使用食物”测试）
     if (def->audio.contains("item_spawn"))
         audio.playSfx(def->audio.value("item_spawn"));
@@ -195,6 +314,44 @@ void WifeLabel::spawnItem(const QString& itemId)
     if (def->audio.contains("actor_spawn"))
         audio.playVoice(def->audio.value("actor_spawn"));
 }
+
+void WifeLabel::handleItemDropped(ItemWidget* item)
+{
+    if (!item) return;
+
+    QWidget* w = window();
+    if (!w) return;
+
+    const ItemDef* def = itemDB.get(item->itemId());
+    if (!def) return;
+
+    // 角色在 window 坐标系下的矩形
+    const QRect wifeRect(mapTo(w, QPoint(0,0)), size());
+    const QRect itemRect(item->pos(), item->size());
+
+    const bool onWife = wifeRect.intersects(itemRect);
+    if (!onWife) return;
+
+    // 阶段2（v0）：只实现 food 的“喂到身上就吃掉”
+    if (def->type != ItemType::Food) return;
+
+    // 播放：角色音效 + 物品音效（可同时响，因为是不同通道）
+    const QString actorCat = def->audio.value("actor_use");
+    const QString itemCat  = def->audio.value("item_use");
+
+    if (!actorCat.isEmpty())
+        audio.playVoice(actorCat);
+
+    if (!itemCat.isEmpty())
+        audio.playSfx(itemCat);
+
+    // 视觉反馈：进入 Eat（内部会自动回 Idle）
+    playEat();
+
+    // 物品消失
+    item->deleteLater();
+}
+
 
 void WifeLabel::setFrames(const QVector<QPixmap> &frames, int intervalMs)
 {
@@ -224,6 +381,9 @@ void WifeLabel::playMainState()
         break;
     case State::Angry:
         setFrames(angryFrames.isEmpty() ? idleFrames : angryFrames, 80);
+        break;
+    case State::Eat:
+        setFrames(eatFrames.isEmpty() ? (happyFrames.isEmpty() ? idleFrames : happyFrames) : eatFrames, 80);
         break;
     case State::Dragging:
         setFrames(draggingFrames.isEmpty() ? idleFrames : draggingFrames, 80);
@@ -255,6 +415,16 @@ void WifeLabel::playAngry()
     playMainState();
 
     // 随机 angry 时长：800–1400 ms
+    int durationMs = QRandomGenerator::global()->bounded(800, 1401);
+    happyTimer.start(durationMs);
+}
+
+void WifeLabel::playEat()
+{
+    // 注意：食物交互里会根据 manifest 播 actor_use，这里不强制播音，避免重复。
+    mainState = State::Eat;
+    playMainState();
+
     int durationMs = QRandomGenerator::global()->bounded(800, 1401);
     happyTimer.start(durationMs);
 }
@@ -450,7 +620,8 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
                 {
                     frequency = v;
                     saveUserSettings();
-                    // 里程碑5：这里会更新“随机语音间隔策略”
+                    // frequency 控制 idle clip 随机切换间隔
+                    startOrStopIdleSwitchTimer();
                 });
     }
 

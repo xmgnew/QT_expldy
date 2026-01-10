@@ -16,6 +16,9 @@ public:
 
     QString itemId() const { return id; }
 
+signals:
+    void dropped(ItemWidget* item);
+
 protected:
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
