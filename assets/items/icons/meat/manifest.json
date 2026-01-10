@@ -1,0 +1,13 @@
+{
+  "name": "Meat",
+  "type": "food",
+  "tags": ["edible"],
+  "frame_interval_ms": 120,
+  "audio": {
+    "actor_use": "eat",
+    "item_use": "meat_use"
+  },
+  "stats": {
+    "heal": 6
+  }
+}

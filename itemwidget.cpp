@@ -1,11 +1,30 @@
 #include "itemwidget.h"
-#include <QApplication>
 
-ItemWidget::ItemWidget(const QString& itemId, QWidget* parent)
-    : QLabel(parent), id(itemId)
+ItemWidget::ItemWidget(const QString& itemId,
+                       const QVector<QPixmap>& f,
+                       int intervalMs,
+                       QWidget* parent)
+    : QLabel(parent), id(itemId), frames(f)
 {
     setAttribute(Qt::WA_TranslucentBackground);
-    setMouseTracking(true);
+    setScaledContents(false);
+
+    refreshFrame();
+
+    if (frames.size() > 1) {
+        anim.start(intervalMs);
+        connect(&anim, &QTimer::timeout, this, [this]() {
+            idx = (idx + 1) % frames.size();
+            refreshFrame();
+        });
+    }
+}
+
+void ItemWidget::refreshFrame()
+{
+    if (frames.isEmpty()) return;
+    setPixmap(frames[idx]);
+    resize(frames[idx].size());
 }
 
 void ItemWidget::mousePressEvent(QMouseEvent* e)

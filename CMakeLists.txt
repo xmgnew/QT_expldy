@@ -29,6 +29,10 @@ qt_add_executable(expldy
     inventorydialog.cpp
     itemwidget.h
     itemwidget.cpp
+    itemdb.h
+    itemdb.cpp
+    animateditembutton.h
+    animateditembutton.cpp
 )
 
 # ✅ 关键修复：把 Multimedia 链接进来

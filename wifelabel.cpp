@@ -1,5 +1,7 @@
 #include "wifelabel.h"
 #include "inventorydialog.h"
+#include "itemdb.h"
+#include "itemwidget.h"
 
 #include <QDir>
 #include <QFileInfoList>
@@ -7,7 +9,6 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <algorithm>
-
 #include <QMenu>
 #include <QAction>
 #include <QWidgetAction>
@@ -16,6 +17,8 @@
 #include <QRandomGenerator>
 #include <QHBoxLayout>
 #include <QLabel>
+
+ItemDB itemDB;
 
 WifeLabel::WifeLabel(QWidget *parent)
     : QLabel(parent)
@@ -302,6 +305,9 @@ bool WifeLabel::loadFromAssets()
     audio.rebuildIndex();
     audio.setVolume01(volume / 100.0);
 
+    itemDB.load(root, QSize(64, 64)); // 物品标准尺寸（按钮/场景通用）
+    qDebug() << "ItemDB loaded ids =" << itemDB.itemIds();
+
     return true;
 }
 
@@ -529,26 +535,13 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     connect(inv, &QAction::triggered, this, [this]()
             {
     if (!inventoryDlg) {
-        inventoryDlg = new InventoryDialog(window());
+    inventoryDlg = new InventoryDialog(window());
+    inventoryDlg->setDB(&itemDB);
 
-        const QString root = assetsRoot();
-        auto iconOf = [&](const QString& id){
-            return QDir(root).filePath("items/icons/" + id + ".png");
-        };
-
-    inventoryDlg->setItems({
-        {"food_apple", "Apple", iconOf("food_apple"), "Food"},
-        {"food_meat",  "Meat",  iconOf("food_meat"),  "Food"},
-        {"mob_slime",  "Slime", iconOf("mob_slime"),  "Monster"},
-        {"wp_sword",   "Sword", iconOf("wp_sword"),   "Weapon"},
-    });
-
-    // 点击按钮 -> 生成物品（你后面会实现 spawnItem）
     connect(inventoryDlg, &InventoryDialog::spawnRequested, this, [this](const QString& id){
         spawnItem(id);
     });
     }
-
     inventoryDlg->show();
     inventoryDlg->raise();
     inventoryDlg->activateWindow(); });
@@ -620,22 +613,17 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     event->accept();
 }
 
-void WifeLabel::spawnItem(const QString &itemId)
+void WifeLabel::spawnItem(const QString& itemId)
 {
-    QWidget *w = window(); // 顶层窗口当场景容器
-    if (!w)
-        return;
+    QWidget* w = window();
+    if (!w) return;
 
-    // 物品图标路径：assets/items/icons/<id>.png
-    const QString root = assetsRoot();
-    const QString iconPath = QDir(root).filePath("items/icons/" + itemId + ".png");
+    const ItemDef* def = itemDB.get(itemId);
+    if (!def) return;
 
-    auto *item = new ItemWidget(itemId, w);
-    item->setPixmap(QPixmap(iconPath));
-    item->setScaledContents(true);
-    item->resize(64, 64); // 物品显示大小，可改
+    auto* item = new ItemWidget(def->id, def->frames, def->frameIntervalMs, w);
 
-    // 默认生成在角色旁边（右下角一点）
+    // 默认生成在角色旁边
     QPoint p = this->mapTo(w, QPoint(width() - 20, height() - 20));
     item->move(p);
 

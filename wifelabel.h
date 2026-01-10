@@ -10,9 +10,12 @@
 #include <QMouseEvent>
 #include <QContextMenuEvent>
 #include <QHash>
+
 #include "audiomanager.h"
 #include "inventorydialog.h"
 #include "itemwidget.h"
+#include "itemdb.h"
+#include "inventorydialog.h"
 
 class WifeLabel : public QLabel
 {
@@ -89,6 +92,7 @@ private:
     // 物品栏
     InventoryDialog* inventoryDlg = nullptr;
     void spawnItem(const QString& itemId);
+    ItemDB itemDB;
 
     void loadUserSettings();
     void saveUserSettings() const;
