@@ -1,4 +1,5 @@
 #include "wifelabel.h"
+#include "inventorydialog.h"
 
 #include <QDir>
 #include <QFileInfoList>
@@ -522,6 +523,36 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     w->setWindowFlags(f);
     w->show(); });
 
+    // 物品栏
+    menu.addSeparator();
+    QAction *inv = menu.addAction("Inventory...");
+    connect(inv, &QAction::triggered, this, [this]()
+            {
+    if (!inventoryDlg) {
+        inventoryDlg = new InventoryDialog(window());
+
+        const QString root = assetsRoot();
+        auto iconOf = [&](const QString& id){
+            return QDir(root).filePath("items/icons/" + id + ".png");
+        };
+
+    inventoryDlg->setItems({
+        {"food_apple", "Apple", iconOf("food_apple"), "Food"},
+        {"food_meat",  "Meat",  iconOf("food_meat"),  "Food"},
+        {"mob_slime",  "Slime", iconOf("mob_slime"),  "Monster"},
+        {"wp_sword",   "Sword", iconOf("wp_sword"),   "Weapon"},
+    });
+
+    // 点击按钮 -> 生成物品（你后面会实现 spawnItem）
+    connect(inventoryDlg, &InventoryDialog::spawnRequested, this, [this](const QString& id){
+        spawnItem(id);
+    });
+    }
+
+    inventoryDlg->show();
+    inventoryDlg->raise();
+    inventoryDlg->activateWindow(); });
+
     // --- Audio 子菜单：Volume / Frequency sliders ---
     QMenu *audioMenu = menu.addMenu("Audio");
 
@@ -589,15 +620,40 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     event->accept();
 }
 
+void WifeLabel::spawnItem(const QString &itemId)
+{
+    QWidget *w = window(); // 顶层窗口当场景容器
+    if (!w)
+        return;
+
+    // 物品图标路径：assets/items/icons/<id>.png
+    const QString root = assetsRoot();
+    const QString iconPath = QDir(root).filePath("items/icons/" + itemId + ".png");
+
+    auto *item = new ItemWidget(itemId, w);
+    item->setPixmap(QPixmap(iconPath));
+    item->setScaledContents(true);
+    item->resize(64, 64); // 物品显示大小，可改
+
+    // 默认生成在角色旁边（右下角一点）
+    QPoint p = this->mapTo(w, QPoint(width() - 20, height() - 20));
+    item->move(p);
+
+    item->show();
+    item->raise();
+}
+
 // DEBUG专用
-void WifeLabel::paintEvent(QPaintEvent* e)
+void WifeLabel::paintEvent(QPaintEvent *e)
 {
     QLabel::paintEvent(e);
 
-    if (!debugDrawBounds) return;
+    if (!debugDrawBounds)
+        return;
 
-    QWidget* p = parentWidget();
-    if (!p) return;
+    QWidget *p = parentWidget();
+    if (!p)
+        return;
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, false);
@@ -609,14 +665,16 @@ void WifeLabel::paintEvent(QPaintEvent* e)
     painter.drawRect(rect().adjusted(1, 1, -2, -2));
 
     // 写关键数值
-    const int maxX = p->width()  - width();
+    const int maxX = p->width() - width();
     const int maxY = p->height() - height();
 
     painter.setPen(Qt::black);
     painter.drawText(10, 20,
-        QString("pos=(%1,%2) size=%3x%4 max=(%5,%6)")
-            .arg(x()).arg(y())
-            .arg(width()).arg(height())
-            .arg(maxX).arg(maxY)
-    );
+                     QString("pos=(%1,%2) size=%3x%4 max=(%5,%6)")
+                         .arg(x())
+                         .arg(y())
+                         .arg(width())
+                         .arg(height())
+                         .arg(maxX)
+                         .arg(maxY));
 }

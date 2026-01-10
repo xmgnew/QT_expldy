@@ -11,6 +11,8 @@
 #include <QContextMenuEvent>
 #include <QHash>
 #include "audiomanager.h"
+#include "inventorydialog.h"
+#include "itemwidget.h"
 
 class WifeLabel : public QLabel
 {
@@ -79,10 +81,14 @@ private:
     // 撞边 hit 冷却
     QElapsedTimer edgeHitCooldown;
 
-    // 右键菜单设置（先存值，里程碑5再接音频）
+    // 右键菜单设置
     int volume = 70;       // 0-100
     int frequency = 50;    // 0-100（说话频率/健谈程度）
     AudioManager audio;
+    
+    // 物品栏
+    InventoryDialog* inventoryDlg = nullptr;
+    void spawnItem(const QString& itemId);
 
     void loadUserSettings();
     void saveUserSettings() const;
