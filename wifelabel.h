@@ -9,11 +9,8 @@
 #include <QPoint>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
-#include <QHash>
 
 #include "audiomanager.h"
-#include "inventorydialog.h"
-#include "itemwidget.h"
 #include "itemdb.h"
 #include "inventorydialog.h"
 
@@ -35,7 +32,6 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
-    void paintEvent(QPaintEvent* e) override; // DEBUG专用
 
 private:
     enum class State { Idle, Happy, Angry, Dragging };
@@ -43,12 +39,7 @@ private:
 
     QSize targetSize { 400, 600 };
 
-    // Idle clip 系统：idle/ 下每个子目录是一个 clip
-    QHash<QString, QVector<QPixmap>> idleClips;
-    QString currentIdleClip;
-    QString lastIdleClip;
-    QVector<QPixmap> idleFrames; // currentIdleClip 对应的帧缓存（兼容旧逻辑）
-
+    QVector<QPixmap> idleFrames;
     QVector<QPixmap> happyFrames;
     QVector<QPixmap> angryFrames;
     QVector<QPixmap> hitFrames;
@@ -59,12 +50,14 @@ private:
 
     // Timer
     QTimer frameTimer;
-    QTimer emotionTimer;     // Happy/Angry 用同一个 timer
-    QTimer idleSwitchTimer;  // Idle clip 切换
+    QTimer happyTimer;
 
-    int idleSwitchIntervalMs() const; // 由 frequency 决定
-    void startOrStopIdleSwitchTimer();
-    void switchIdleClipRandom();
+    // 阶段1：音频（三通道）+ 物品库 + 物品栏
+    AudioManager audio;
+    ItemDB itemDB;
+    InventoryDialog* inventoryDlg = nullptr;
+
+    void spawnItem(const QString& itemId);
 
     QString assetsRoot() const;
     QVector<QPixmap> loadFrames(const QString &dirPath) const;
@@ -79,20 +72,13 @@ private:
     QPoint pressGlobalPos;
     QPoint labelStartPos;
     int dragThresholdPx = 8;
-    bool debugDrawBounds = true;  // DEBUG专用
 
     // 撞边 hit 冷却
     QElapsedTimer edgeHitCooldown;
 
-    // 右键菜单设置
+    // 右键菜单设置（先存值，里程碑5再接音频）
     int volume = 70;       // 0-100
     int frequency = 50;    // 0-100（说话频率/健谈程度）
-    AudioManager audio;
-    
-    // 物品栏
-    InventoryDialog* inventoryDlg = nullptr;
-    void spawnItem(const QString& itemId);
-    ItemDB itemDB;
 
     void loadUserSettings();
     void saveUserSettings() const;

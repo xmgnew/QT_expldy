@@ -14,6 +14,8 @@ struct ItemDef {
     ItemType type = ItemType::Misc;
     QStringList tags;            // manifest.tags
     QJsonObject stats;           // manifest.stats（先存 JSON 方便扩展）
+    // manifest.audio：事件 -> category（不限定 key，阶段2会用到 actor_use/item_use/enemy_* 等）
+    QHash<QString, QString> audio;
     QVector<QPixmap> frames;     // 已缩放到 targetSize 的帧
     int frameIntervalMs = 120;   // manifest.frame_interval_ms 或默认
 };

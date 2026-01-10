@@ -8,10 +8,10 @@ int main(int argc, char *argv[])
 
     QWidget window;
     window.setWindowTitle("Expldy");
-    window.resize(800, 900);
+    window.resize(800, 600);
 
     auto *wife = new WifeLabel(&window);
-    wife->setTargetSize(QSize(200, 200));
+    wife->setTargetSize(QSize(400, 600));
     wife->loadFromAssets();
     wife->playIdle();
 

@@ -5,6 +5,7 @@
 #include <QFileInfoList>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonValue>
 #include <QPainter>
 #include <algorithm>
 
@@ -61,6 +62,15 @@ ItemDef ItemDB::loadOneItemDir(const QString& id, const QString& dirPath, const 
 
                 if (o.contains("stats") && o["stats"].isObject())
                     def.stats = o["stats"].toObject();
+
+                // audio: { "actor_use": "eat", "item_use": "apple_use", "enemy_hit": "slime_hit", ... }
+                if (o.contains("audio") && o["audio"].isObject()) {
+                    const QJsonObject a = o["audio"].toObject();
+                    for (auto it = a.begin(); it != a.end(); ++it) {
+                        if (it.value().isString())
+                            def.audio.insert(it.key(), it.value().toString());
+                    }
+                }
 
                 if (o.contains("frame_interval_ms") && o["frame_interval_ms"].isDouble())
                     def.frameIntervalMs = int(o["frame_interval_ms"].toDouble());
