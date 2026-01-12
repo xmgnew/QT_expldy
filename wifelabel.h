@@ -116,8 +116,10 @@ private:
     ItemWidget *equippedWeapon = nullptr;
     ItemWidget *equippedShield = nullptr;
 
-    QPoint weaponOffset = QPoint(260, 320); // 挂点在角色画布内的位置
-    QPoint shieldOffset = QPoint(120, 330);
+    // 装备挂点（角色本地坐标）。如果为 (-1,-1) 则用基于当前角色尺寸的默认值。
+    // 这样你换 targetSize/素材尺寸也不会跑偏。
+    QPoint weaponOffset = QPoint(-1, -1);
+    QPoint shieldOffset = QPoint(-1, -1);
 
     void snapEquippedItems(); // 角色移动时让装备跟随
     bool overlapsCharacter(QWidget *item) const;

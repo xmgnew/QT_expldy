@@ -749,14 +749,23 @@ void WifeLabel::snapEquippedItems()
 
     const QPoint charTopLeft = mapTo(w, QPoint(0, 0));
 
+    // 没有显式设置挂点时，用“相对角色尺寸”的默认挂点。
+    // 这样 targetSize / 角色尺寸变化时，武器/盾不会飞到右下角很远。
+    const QPoint weaponAnchor = (weaponOffset.x() < 0 || weaponOffset.y() < 0)
+                                   ? QPoint(int(width() * 0.72), int(height() * 0.60))
+                                   : weaponOffset;
+    const QPoint shieldAnchor = (shieldOffset.x() < 0 || shieldOffset.y() < 0)
+                                   ? QPoint(int(width() * 0.30), int(height() * 0.62))
+                                   : shieldOffset;
+
     if (equippedWeapon)
     {
-        equippedWeapon->move(charTopLeft + weaponOffset - QPoint(equippedWeapon->width() / 2, equippedWeapon->height() / 2));
+        equippedWeapon->move(charTopLeft + weaponAnchor - QPoint(equippedWeapon->width() / 2, equippedWeapon->height() / 2));
         equippedWeapon->raise();
     }
     if (equippedShield)
     {
-        equippedShield->move(charTopLeft + shieldOffset - QPoint(equippedShield->width() / 2, equippedShield->height() / 2));
+        equippedShield->move(charTopLeft + shieldAnchor - QPoint(equippedShield->width() / 2, equippedShield->height() / 2));
         equippedShield->raise();
     }
 }
