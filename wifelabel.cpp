@@ -321,8 +321,7 @@ void WifeLabel::spawnItem(const QString &itemId)
     // 可选：spawn 音效（不影响阶段2“使用食物”测试）
     if (def->audio.contains("item_spawn"))
         audio.playSfx(def->audio.value("item_spawn"));
-    if (def->audio.contains("enemy_spawn"))
-        audio.playEnemy(def->audio.value("enemy_spawn"));
+    // enemy_spawn 建议只在“使用/生成怪物”时触发（拖到角色身上松手），避免点按钮就叫一声
     if (def->audio.contains("actor_spawn"))
         audio.playVoice(def->audio.value("actor_spawn"));
 }
@@ -409,10 +408,36 @@ void WifeLabel::handleItemDropped(ItemWidget *item)
     case ItemType::Monster:
         if (onChar)
         {
-            // 阶段2.5：先做最小 spawn（不 eat）
-            if (def->audio.contains("enemy_spawn"))
-                audio.playEnemy(def->audio.value("enemy_spawn"));
-            // 先不销毁，先让怪物留在场景里
+            // ✅ 阶段1：最小闭环
+            // - 拖到角色身上：视为“生成怪物”
+            // - 播放 enemy_spawn
+            // - 将怪物吸附到角色旁边（作为后续战斗实体）
+
+            if (!item->isSpawned())
+            {
+                if (def->audio.contains("enemy_spawn"))
+                    audio.playEnemy(def->audio.value("enemy_spawn"));
+                item->setSpawned(true);
+            }
+
+            QWidget *w = window();
+            if (!w)
+                break;
+
+            // 默认放在角色右侧下方（你之后可以像武器/盾一样做成可调挂点）
+            const QPoint charTopLeft = mapTo(w, QPoint(0, 0));
+            QPoint desired = charTopLeft + QPoint(width() + 10, height() - item->height());
+
+            // 限制在窗口内
+            const int minX = 0;
+            const int minY = 0;
+            const int maxX = std::max(0, w->width() - item->width());
+            const int maxY = std::max(0, w->height() - item->height());
+            desired.setX(std::clamp(desired.x(), minX, maxX));
+            desired.setY(std::clamp(desired.y(), minY, maxY));
+
+            item->move(desired);
+            item->raise();
         }
         break;
 

@@ -12,6 +12,10 @@ class ItemWidget : public QLabel
 public:
     bool isEquipped() const { return equipped; }
     void setEquipped(bool v) { equipped = v; }
+
+    // 用于怪物等“生成到场景里”的物体标记（阶段1/2：最小闭环）
+    bool isSpawned() const { return spawned; }
+    void setSpawned(bool v) { spawned = v; }
     explicit ItemWidget(const QString &itemId,
                         const QVector<QPixmap> &frames,
                         int intervalMs,
@@ -40,4 +44,5 @@ private:
 
     void refreshFrame();
     bool equipped = false;
+    bool spawned = false;
 };
