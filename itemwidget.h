@@ -10,6 +10,8 @@ class ItemWidget : public QLabel
 {
     Q_OBJECT
 public:
+    bool isEquipped() const { return equipped; }
+    void setEquipped(bool v) { equipped = v; }
     explicit ItemWidget(const QString &itemId,
                         const QVector<QPixmap> &frames,
                         int intervalMs,
@@ -37,4 +39,5 @@ private:
     int dragThreshold = 4;
 
     void refreshFrame();
+    bool equipped = false;
 };

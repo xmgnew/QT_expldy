@@ -30,6 +30,8 @@ public:
     void playHappy();
     void playAngry();
     void playEat();
+    void playAttack();
+    void playDefend();
     void playHit(int ms = 200); // 短反馈：播 hit 后回到主状态
 
 protected:
@@ -45,6 +47,8 @@ private:
         Happy,
         Angry,
         Eat,
+        Attack,
+        Defend,
         Dragging
     };
     State mainState = State::Idle;
@@ -60,6 +64,8 @@ private:
     QVector<QPixmap> happyFrames;
     QVector<QPixmap> angryFrames;
     QVector<QPixmap> eatFrames;
+    QVector<QPixmap> attackFrames;
+    QVector<QPixmap> defendFrames;
     QVector<QPixmap> hitFrames;
     QVector<QPixmap> draggingFrames;
 
@@ -106,4 +112,14 @@ private:
 
     void loadUserSettings();
     void saveUserSettings() const;
+
+    ItemWidget *equippedWeapon = nullptr;
+    ItemWidget *equippedShield = nullptr;
+
+    QPoint weaponOffset = QPoint(260, 320); // 挂点在角色画布内的位置
+    QPoint shieldOffset = QPoint(120, 330);
+
+    void snapEquippedItems(); // 角色移动时让装备跟随
+    bool overlapsCharacter(QWidget *item) const;
+    void equip(ItemWidget *item, ItemType type);
 };

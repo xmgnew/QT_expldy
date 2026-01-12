@@ -33,7 +33,8 @@ WifeLabel::WifeLabel(QWidget *parent)
     connect(&happyTimer, &QTimer::timeout, this, [this]()
             {
                 // 只有仍然处于短情绪态才回 idle（避免被别的状态覆盖）
-                if (mainState == State::Happy || mainState == State::Angry || mainState == State::Eat)
+                if (mainState == State::Happy || mainState == State::Angry || mainState == State::Eat ||
+                    mainState == State::Attack || mainState == State::Defend)
                 {
                     mainState = State::Idle;
                     playMainState();
@@ -250,6 +251,8 @@ bool WifeLabel::loadFromAssets()
     happyFrames = loadFrames(QDir(base).filePath("happy"));
     angryFrames = loadFrames(QDir(base).filePath("angry"));
     eatFrames = loadFrames(QDir(base).filePath("eat"));
+    attackFrames = loadFrames(QDir(base).filePath("attack"));
+    defendFrames = loadFrames(QDir(base).filePath("defend"));
     hitFrames = loadFrames(QDir(base).filePath("hit"));
     draggingFrames = loadFrames(QDir(base).filePath("dragging"));
 
@@ -259,6 +262,8 @@ bool WifeLabel::loadFromAssets()
              << "happy=" << happyFrames.size()
              << "angry=" << angryFrames.size()
              << "eat=" << eatFrames.size()
+             << "attack=" << attackFrames.size()
+             << "defend=" << defendFrames.size()
              << "hit=" << hitFrames.size()
              << "dragging=" << draggingFrames.size();
 
@@ -324,44 +329,98 @@ void WifeLabel::spawnItem(const QString &itemId)
 
 void WifeLabel::handleItemDropped(ItemWidget *item)
 {
-    if (!item)
-        return;
 
-    QWidget *w = window();
-    if (!w)
+    if (!item)
         return;
 
     const ItemDef *def = itemDB.get(item->itemId());
     if (!def)
         return;
 
-    // 角色在 window 坐标系下的矩形
-    const QRect wifeRect(mapTo(w, QPoint(0, 0)), size());
-    const QRect itemRect(item->pos(), item->size());
+    const bool onChar = overlapsCharacter(item);
 
-    const bool onWife = wifeRect.intersects(itemRect);
-    if (!onWife)
-        return;
+    switch (def->type)
+    {
+    case ItemType::Food:
+        if (onChar)
+        {
+            // 角色+物品双音效（如果 manifest 配了）
+            if (def->audio.contains("actor_use"))
+                audio.playVoice(def->audio.value("actor_use"));
+            else
+                audio.playVoice("eat"); // 没配就默认
 
-    // 阶段2（v0）：只实现 food 的“喂到身上就吃掉”
-    if (def->type != ItemType::Food)
-        return;
+            if (def->audio.contains("item_use"))
+                audio.playSfx(def->audio.value("item_use"));
 
-    // 播放：角色音效 + 物品音效（可同时响，因为是不同通道）
-    const QString actorCat = def->audio.value("actor_use");
-    const QString itemCat = def->audio.value("item_use");
+            playEat();           // 已经加了 assets/wife/eat 的话就播 eat
+            item->deleteLater(); // 食物消失
+        }
+        break;
 
-    if (!actorCat.isEmpty())
-        audio.playVoice(actorCat);
+    case ItemType::Weapon:
+        if (onChar)
+        {
+            equip(item, ItemType::Weapon); // 装备不消失
+            // 你想的话，这里也可以触发一次 attack 音效/动画作为反馈
+            if (def->audio.contains("actor_use"))
+                audio.playVoice(def->audio.value("actor_use"));
+            if (def->audio.contains("item_use"))
+                audio.playSfx(def->audio.value("item_use"));
 
-    if (!itemCat.isEmpty())
-        audio.playSfx(itemCat);
+            // ✅ 动画反馈：优先 attack（没有 attack 帧就自动用 happy 顶替）
+            playAttack();
+        }
+        else
+        {
+            // 只有“曾经装备过”的武器，拖离角色才销毁
+            if (item->isEquipped())
+            {
+                if (equippedWeapon == item)
+                    equippedWeapon = nullptr;
+                item->deleteLater();
+            }
+        }
+        break;
 
-    // 视觉反馈：进入 Eat（内部会自动回 Idle）
-    playEat();
+    case ItemType::Shield:
+        if (onChar)
+        {
+            equip(item, ItemType::Shield);
+            if (def->audio.contains("actor_use"))
+                audio.playVoice(def->audio.value("actor_use"));
+            if (def->audio.contains("item_use"))
+                audio.playSfx(def->audio.value("item_use"));
 
-    // 物品消失
-    item->deleteLater();
+            // ✅ 动画反馈：defend（没有 defend 帧就自动用 idle 顶替）
+            playDefend();
+        }
+        else
+        {
+            if (item->isEquipped())
+            {
+                if (equippedShield == item)
+                    equippedShield = nullptr;
+                item->deleteLater();
+            }
+        }
+        break;
+
+    case ItemType::Monster:
+        if (onChar)
+        {
+            // 阶段2.5：先做最小 spawn（不 eat）
+            if (def->audio.contains("enemy_spawn"))
+                audio.playEnemy(def->audio.value("enemy_spawn"));
+            // 先不销毁，先让怪物留在场景里
+        }
+        break;
+
+    case ItemType::Misc:
+    default:
+        // 先不处理
+        break;
+    }
 }
 
 void WifeLabel::setFrames(const QVector<QPixmap> &frames, int intervalMs)
@@ -395,6 +454,14 @@ void WifeLabel::playMainState()
         break;
     case State::Eat:
         setFrames(eatFrames.isEmpty() ? (happyFrames.isEmpty() ? idleFrames : happyFrames) : eatFrames, 80);
+        break;
+    case State::Attack:
+        // attack 动画不存在就先用 happy 顶替（后续你补 assets/wife/attack 即可）
+        setFrames(attackFrames.isEmpty() ? (happyFrames.isEmpty() ? idleFrames : happyFrames) : attackFrames, 80);
+        break;
+    case State::Defend:
+        // defend 动画不存在就先用 idle 顶替
+        setFrames(defendFrames.isEmpty() ? idleFrames : defendFrames, 80);
         break;
     case State::Dragging:
         setFrames(draggingFrames.isEmpty() ? idleFrames : draggingFrames, 80);
@@ -434,6 +501,25 @@ void WifeLabel::playEat()
 {
     // 注意：食物交互里会根据 manifest 播 actor_use，这里不强制播音，避免重复。
     mainState = State::Eat;
+    playMainState();
+
+    int durationMs = QRandomGenerator::global()->bounded(800, 1401);
+    happyTimer.start(durationMs);
+}
+
+void WifeLabel::playAttack()
+{
+    // 注意：物品交互里会根据 manifest 播 actor_use / item_use，这里不强制播音，避免重复。
+    mainState = State::Attack;
+    playMainState();
+
+    int durationMs = QRandomGenerator::global()->bounded(800, 1401);
+    happyTimer.start(durationMs);
+}
+
+void WifeLabel::playDefend()
+{
+    mainState = State::Defend;
     playMainState();
 
     int durationMs = QRandomGenerator::global()->bounded(800, 1401);
@@ -496,6 +582,7 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
     if (!p)
     {
         move(newPos);
+        snapEquippedItems();
         return;
     }
 
@@ -515,6 +602,7 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
     newPos.setY(std::clamp(newPos.y(), minY, maxY));
 
     move(newPos);
+    snapEquippedItems();
 
     const int cooldownMs = 600;
     if (hitEdge && edgeHitCooldown.elapsed() > cooldownMs)
@@ -640,4 +728,58 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
 
     menu.exec(event->globalPos());
     event->accept();
+}
+
+bool WifeLabel::overlapsCharacter(QWidget *item) const
+{
+    QWidget *w = window();
+    if (!w || !item)
+        return false;
+
+    QRect charRect(mapTo(w, QPoint(0, 0)), size());
+    QRect itemRect(item->mapTo(w, QPoint(0, 0)), item->size());
+    return charRect.intersects(itemRect);
+}
+
+void WifeLabel::snapEquippedItems()
+{
+    QWidget *w = window();
+    if (!w)
+        return;
+
+    const QPoint charTopLeft = mapTo(w, QPoint(0, 0));
+
+    if (equippedWeapon)
+    {
+        equippedWeapon->move(charTopLeft + weaponOffset - QPoint(equippedWeapon->width() / 2, equippedWeapon->height() / 2));
+        equippedWeapon->raise();
+    }
+    if (equippedShield)
+    {
+        equippedShield->move(charTopLeft + shieldOffset - QPoint(equippedShield->width() / 2, equippedShield->height() / 2));
+        equippedShield->raise();
+    }
+}
+
+void WifeLabel::equip(ItemWidget *item, ItemType type)
+{
+    if (!item)
+        return;
+
+    item->setEquipped(true);
+
+    if (type == ItemType::Weapon)
+    {
+        if (equippedWeapon && equippedWeapon != item)
+            equippedWeapon->deleteLater();
+        equippedWeapon = item;
+    }
+    else if (type == ItemType::Shield)
+    {
+        if (equippedShield && equippedShield != item)
+            equippedShield->deleteLater();
+        equippedShield = item;
+    }
+
+    snapEquippedItems();
 }

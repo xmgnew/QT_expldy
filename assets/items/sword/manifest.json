@@ -1,7 +1,7 @@
 {
-  "name": "Apple",
-  "type": "food",
-  "tags": ["edible"],
+  "name": "Sword",
+  "type": "Weapon",
+  "tags": ["attackable"],
   "frame_interval_ms": 120,
   "audio": {
     "actor_use": "attack",

@@ -1,6 +1,6 @@
 {
   "name": "Slime",
-  "type": "monster",
+  "type": "Monster",
   "tags": ["hostile"],
   "frame_interval_ms": 120,
   "audio": {
