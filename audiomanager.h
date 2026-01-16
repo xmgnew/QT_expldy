@@ -6,25 +6,51 @@
 #include <QMediaPlayer>
 #include <QAudioOutput>
 
-class AudioManager : public QObject {
+// AudioManager
+// - Voice: 角色发声（assets/audio/wife/<category>/）
+// - SFX:   物品音效（assets/audio/items/<category>/）
+// - Enemy: 怪物音效（assets/audio/monsters/<category>/）
+// 三个通道彼此独立，可同时播放。
+
+class AudioManager : public QObject
+{
     Q_OBJECT
 public:
-    explicit AudioManager(QObject* parent=nullptr);
+    explicit AudioManager(QObject *parent = nullptr);
 
-    void setVolume01(double v);               // 0.0-1.0
-    void setAssetsRoot(const QString& assetsRoot);
+    void setVolume01(double v); // 0.0-1.0
+    void setAssetsRoot(const QString &assetsRoot);
     void rebuildIndex();
 
+    // Backward-compat: 等同于 playVoice(category)
+    void playRandom(const QString &category);
+
     void stop();
-    void playRandom(const QString& category);
+
+    // 三通道播放
+    void playVoice(const QString &category);
+    void playSfx(const QString &category);
+    void playEnemy(const QString &category);
 
 private:
     QString root;
     double volume01 = 0.7;
 
-    QMediaPlayer player;
-    QAudioOutput output;
+    QMediaPlayer voicePlayer;
+    QAudioOutput voiceOut;
 
-    QHash<QString, QStringList> bank;
-    QStringList scanAudioFiles(const QString& dirPath) const;
+    QMediaPlayer sfxPlayer;
+    QAudioOutput sfxOut;
+
+    QMediaPlayer enemyPlayer;
+    QAudioOutput enemyOut;
+
+    QHash<QString, QStringList> voiceBank;
+    QHash<QString, QStringList> sfxBank;
+    QHash<QString, QStringList> enemyBank;
+
+    QStringList scanAudioFiles(const QString &dirPath) const;
+
+    void rebuildBankFromDir(QHash<QString, QStringList> &outBank, const QString &baseDir);
+    void playFromBank(QMediaPlayer &p, const QHash<QString, QStringList> &bank, const QString &category);
 };

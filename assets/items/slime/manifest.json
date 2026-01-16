@@ -1,0 +1,16 @@
+{
+  "name": "Slime",
+  "type": "Monster",
+  "tags": ["hostile"],
+  "frame_interval_ms": 120,
+  "audio": {
+    "enemy_spawn": "slime_spawn",
+    "enemy_hit": "slime_hit",
+    "enemy_attack": "slime_attack",
+    "enemy_death": "slime_death"
+  },
+  "stats": {
+    "hp": 10,
+    "damage": 1
+  }
+}

@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 
     QWidget window;
     window.setWindowTitle("Expldy");
-    window.resize(800, 900);
+    window.resize(800, 600);
 
     auto *wife = new WifeLabel(&window);
     wife->setTargetSize(QSize(200, 200));
@@ -18,8 +18,7 @@ int main(int argc, char *argv[])
     // 初始居中（窗口内拖动）
     wife->move(
         (window.width() - wife->width()) / 2,
-        (window.height() - wife->height()) / 2
-    );
+        (window.height() - wife->height()) / 2);
 
     window.show();
     return app.exec();

@@ -13,8 +13,8 @@
 #include <QSlider>
 #include <QSettings>
 #include <QRandomGenerator>
-#include <QHBoxLayout>
-#include <QLabel>
+
+#include "itemwidget.h"
 
 WifeLabel::WifeLabel(QWidget *parent)
     : QLabel(parent)
@@ -28,37 +28,23 @@ WifeLabel::WifeLabel(QWidget *parent)
     edgeHitCooldown.start();
     loadUserSettings();
 
-    emotionTimer.setSingleShot(true);
-    connect(&emotionTimer, &QTimer::timeout, this, [this]()
+    // Happy/Angry 这类“短情绪态”共用一个计时器
+    happyTimer.setSingleShot(true);
+    connect(&happyTimer, &QTimer::timeout, this, [this]()
             {
                 // 只有仍然处于短情绪态才回 idle（避免被别的状态覆盖）
-                if (mainState == State::Happy || mainState == State::Angry)
+                if (mainState == State::Happy || mainState == State::Angry || mainState == State::Eat ||
+                    mainState == State::Attack || mainState == State::Defend)
                 {
                     mainState = State::Idle;
                     playMainState();
                 } });
 
+    // idle clip 随机切换：只在 Idle 时触发
     connect(&idleSwitchTimer, &QTimer::timeout, this, [this]()
             {
-                // 只在 idle 时允许切换（否则会打断交互状态）
-                if (mainState == State::Idle)
-                    switchIdleClipRandom(); });
-
-    // 启动后应用一次“置顶”设置（不依赖 main.cpp）
-    QTimer::singleShot(0, this, [this]()
-                       {
-    QSettings s("expldy", "expldy");
-    const bool onTop = s.value("ui/alwaysOnTop", false).toBool();
-
-    QWidget* w = window();
-    if (!w) return;
-
-    Qt::WindowFlags f = w->windowFlags();
-    if (onTop) f |= Qt::WindowStaysOnTopHint;
-    else       f &= ~Qt::WindowStaysOnTopHint;
-
-    w->setWindowFlags(f);
-    w->show(); });
+        if (mainState == State::Idle)
+            switchIdleClipRandom(true); });
 }
 
 int WifeLabel::idleSwitchIntervalMs() const
@@ -68,7 +54,6 @@ int WifeLabel::idleSwitchIntervalMs() const
     if (frequency <= 0)
         return -1;
 
-    // 线性映射：1 -> 20000ms，100 -> 2000ms
     const int f = std::clamp(frequency, 1, 100);
     const int slowMs = 20000;
     const int fastMs = 2000;
@@ -85,68 +70,63 @@ void WifeLabel::startOrStopIdleSwitchTimer()
         idleSwitchTimer.stop();
         return;
     }
-
-    // 重新启动（立即按新的频率生效）
     idleSwitchTimer.start(ms);
 }
 
-void WifeLabel::switchIdleClipRandom()
+void WifeLabel::switchIdleClipRandom(bool playVoice)
 {
     if (idleClips.isEmpty())
         return;
-    const QString beforeClip = currentIdleClip;
+
+    // 只有一个 clip：固定
     if (idleClips.size() == 1)
     {
         auto keys = idleClips.keys();
         std::sort(keys.begin(), keys.end());
         currentIdleClip = keys.first();
     }
-
     else
     {
         QString chosen;
-        // 尽量避免连续重复：最多尝试 10 次（够用且不浪费）
+        const auto keys = idleClips.keys();
+        // 尽量避免连续重复：最多尝试 10 次
         for (int i = 0; i < 10; ++i)
         {
-            const int idx = QRandomGenerator::global()->bounded(idleClips.size());
-            const auto keys = idleClips.keys();
-            const QString key = keys.at(idx);
-
-            if (key != currentIdleClip)
+            const int idx = QRandomGenerator::global()->bounded(keys.size());
+            const QString k = keys.at(idx);
+            if (k != currentIdleClip)
             {
-                chosen = key;
+                chosen = k;
                 break;
             }
         }
         if (chosen.isEmpty())
         {
-            // 实在没选到（理论上不会），就强制选一个不同的
-            const auto keys = idleClips.keys();
-            chosen = keys.at((keys.indexOf(currentIdleClip) + 1) % keys.size());
+            // 兜底：选一个不同的
+            const int cur = keys.indexOf(currentIdleClip);
+            chosen = keys.at((cur + 1 + keys.size()) % keys.size());
         }
         lastIdleClip = currentIdleClip;
         currentIdleClip = chosen;
     }
 
-    // 如果没有发生切换，就不播 idle 音频、不刷新
-    if (!beforeClip.isEmpty() && currentIdleClip == beforeClip)
+    const auto frames = idleClips.value(currentIdleClip);
+    if (frames.isEmpty())
         return;
 
-    idleFrames = idleClips.value(currentIdleClip);
-    if (idleFrames.isEmpty())
-        return;
+    idleFrames = frames;
 
-    // 只有 idle 时才立刻切换画面；否则只更新缓存，等回 idle 再用
+    // 切换 clip 时播放 idle 语音（只在 idle 态生效）
+    if (playVoice && mainState == State::Idle)
+        audio.playVoice("idle");
+
     if (mainState == State::Idle)
-    {
-        audio.playRandom("idle"); // 只在切换 idle clip 时播一次
         playMainState();
-    }
 }
 
 void WifeLabel::loadUserSettings()
 {
-    // 组织名/应用名
+    // 组织名/应用名随你改；先写死一个稳定值即可
     QSettings s("expldy", "expldy");
     volume = s.value("audio/volume", 70).toInt();
     frequency = s.value("audio/frequency", 50).toInt();
@@ -253,7 +233,7 @@ bool WifeLabel::loadFromAssets()
                     idleClips.insert(clipName, frames);
             }
 
-            // 兼容旧结构：如果 idle/ 下直接放了 png，也当成一个 clip(\"default\")
+            // 兼容：如果 idle/ 下直接放了 png，也当成一个 clip("default")
             const auto directFrames = loadFrames(idleDir.absolutePath());
             if (!directFrames.isEmpty() && !idleClips.contains("default"))
                 idleClips.insert("default", directFrames);
@@ -263,13 +243,16 @@ bool WifeLabel::loadFromAssets()
     if (!idleClips.isEmpty())
     {
         auto keys = idleClips.keys();
-        std::sort(keys.begin(), keys.end()); //  稳定：按字母序
+        std::sort(keys.begin(), keys.end());
         currentIdleClip = keys.first();
         idleFrames = idleClips.value(currentIdleClip);
     }
 
     happyFrames = loadFrames(QDir(base).filePath("happy"));
     angryFrames = loadFrames(QDir(base).filePath("angry"));
+    eatFrames = loadFrames(QDir(base).filePath("eat"));
+    attackFrames = loadFrames(QDir(base).filePath("attack"));
+    defendFrames = loadFrames(QDir(base).filePath("defend"));
     hitFrames = loadFrames(QDir(base).filePath("hit"));
     draggingFrames = loadFrames(QDir(base).filePath("dragging"));
 
@@ -278,6 +261,9 @@ bool WifeLabel::loadFromAssets()
              << "idleFrames=" << idleFrames.size() << "(clip" << currentIdleClip << ")"
              << "happy=" << happyFrames.size()
              << "angry=" << angryFrames.size()
+             << "eat=" << eatFrames.size()
+             << "attack=" << attackFrames.size()
+             << "defend=" << defendFrames.size()
              << "hit=" << hitFrames.size()
              << "dragging=" << draggingFrames.size();
 
@@ -295,13 +281,171 @@ bool WifeLabel::loadFromAssets()
     setPixmap(idleFrames[0]);
     resize(idleFrames[0].size());
 
-    startOrStopIdleSwitchTimer();
-
-    audio.setAssetsRoot(root); // root = assetsRoot()
+    // --- 阶段1：初始化音频与物品库 ---
+    audio.setAssetsRoot(root);
     audio.rebuildIndex();
     audio.setVolume01(volume / 100.0);
 
+    // 物品帧尺寸：先统一 64x64（后续可做成设置）
+    itemDB.load(root, QSize(64, 64));
+
+    // 让 idle 随机切换策略立即生效
+    startOrStopIdleSwitchTimer();
+
     return true;
+}
+
+void WifeLabel::spawnItem(const QString &itemId)
+{
+    QWidget *w = window();
+    if (!w)
+        return;
+
+    const ItemDef *def = itemDB.get(itemId);
+    if (!def)
+        return;
+
+    auto *item = new ItemWidget(def->id, def->frames, def->frameIntervalMs, w);
+
+    // 默认生成在角色旁边（右下角一点）
+    QPoint p = this->mapTo(w, QPoint(width() - 20, height() - 20));
+    item->move(p);
+
+    item->show();
+    item->raise();
+
+    // 阶段2：拖拽物品松手时，判定是否“使用在角色身上”
+    connect(item, &ItemWidget::dropped, this, [this](ItemWidget *it)
+            { handleItemDropped(it); });
+
+    // 可选：spawn 音效（不影响阶段2“使用食物”测试）
+    if (def->audio.contains("item_spawn"))
+        audio.playSfx(def->audio.value("item_spawn"));
+    // enemy_spawn 建议只在“使用/生成怪物”时触发（拖到角色身上松手），避免点按钮就叫一声
+    if (def->audio.contains("actor_spawn"))
+        audio.playVoice(def->audio.value("actor_spawn"));
+}
+
+void WifeLabel::handleItemDropped(ItemWidget *item)
+{
+
+    if (!item)
+        return;
+
+    const ItemDef *def = itemDB.get(item->itemId());
+    if (!def)
+        return;
+
+    const bool onChar = overlapsCharacter(item);
+
+    switch (def->type)
+    {
+    case ItemType::Food:
+        if (onChar)
+        {
+            // 角色+物品双音效（如果 manifest 配了）
+            if (def->audio.contains("actor_use"))
+                audio.playVoice(def->audio.value("actor_use"));
+            else
+                audio.playVoice("eat"); // 没配就默认
+
+            if (def->audio.contains("item_use"))
+                audio.playSfx(def->audio.value("item_use"));
+
+            playEat();           // 已经加了 assets/wife/eat 的话就播 eat
+            item->deleteLater(); // 食物消失
+        }
+        break;
+
+    case ItemType::Weapon:
+        if (onChar)
+        {
+            equip(item, ItemType::Weapon); // 装备不消失
+            // 你想的话，这里也可以触发一次 attack 音效/动画作为反馈
+            if (def->audio.contains("actor_use"))
+                audio.playVoice(def->audio.value("actor_use"));
+            if (def->audio.contains("item_use"))
+                audio.playSfx(def->audio.value("item_use"));
+
+            // ✅ 动画反馈：优先 attack（没有 attack 帧就自动用 happy 顶替）
+            playAttack();
+        }
+        else
+        {
+            // 只有“曾经装备过”的武器，拖离角色才销毁
+            if (item->isEquipped())
+            {
+                if (equippedWeapon == item)
+                    equippedWeapon = nullptr;
+                item->deleteLater();
+            }
+        }
+        break;
+
+    case ItemType::Shield:
+        if (onChar)
+        {
+            equip(item, ItemType::Shield);
+            if (def->audio.contains("actor_use"))
+                audio.playVoice(def->audio.value("actor_use"));
+            if (def->audio.contains("item_use"))
+                audio.playSfx(def->audio.value("item_use"));
+
+            // ✅ 动画反馈：defend（没有 defend 帧就自动用 idle 顶替）
+            playDefend();
+        }
+        else
+        {
+            if (item->isEquipped())
+            {
+                if (equippedShield == item)
+                    equippedShield = nullptr;
+                item->deleteLater();
+            }
+        }
+        break;
+
+    case ItemType::Monster:
+        if (onChar)
+        {
+            // ✅ 阶段1：最小闭环
+            // - 拖到角色身上：视为“生成怪物”
+            // - 播放 enemy_spawn
+            // - 将怪物吸附到角色旁边（作为后续战斗实体）
+
+            if (!item->isSpawned())
+            {
+                if (def->audio.contains("enemy_spawn"))
+                    audio.playEnemy(def->audio.value("enemy_spawn"));
+                item->setSpawned(true);
+            }
+
+            QWidget *w = window();
+            if (!w)
+                break;
+
+            // 默认放在角色右侧下方（你之后可以像武器/盾一样做成可调挂点）
+            const QPoint charTopLeft = mapTo(w, QPoint(0, 0));
+            QPoint desired = charTopLeft + QPoint(width() + 10, height() - item->height());
+
+            // 限制在窗口内
+            const int minX = 0;
+            const int minY = 0;
+            const int maxX = std::max(0, w->width() - item->width());
+            const int maxY = std::max(0, w->height() - item->height());
+            desired.setX(std::clamp(desired.x(), minX, maxX));
+            desired.setY(std::clamp(desired.y(), minY, maxY));
+
+            item->move(desired);
+            item->raise();
+        }
+        break;
+
+    case ItemType::Misc:
+    default:
+        // 先不处理
+        break;
+    }
 }
 
 void WifeLabel::setFrames(const QVector<QPixmap> &frames, int intervalMs)
@@ -333,6 +477,17 @@ void WifeLabel::playMainState()
     case State::Angry:
         setFrames(angryFrames.isEmpty() ? idleFrames : angryFrames, 80);
         break;
+    case State::Eat:
+        setFrames(eatFrames.isEmpty() ? (happyFrames.isEmpty() ? idleFrames : happyFrames) : eatFrames, 80);
+        break;
+    case State::Attack:
+        // attack 动画不存在就先用 happy 顶替（后续你补 assets/wife/attack 即可）
+        setFrames(attackFrames.isEmpty() ? (happyFrames.isEmpty() ? idleFrames : happyFrames) : attackFrames, 80);
+        break;
+    case State::Defend:
+        // defend 动画不存在就先用 idle 顶替
+        setFrames(defendFrames.isEmpty() ? idleFrames : defendFrames, 80);
+        break;
     case State::Dragging:
         setFrames(draggingFrames.isEmpty() ? idleFrames : draggingFrames, 80);
         break;
@@ -353,7 +508,7 @@ void WifeLabel::playHappy()
 
     // 随机 happy 时长：800–1400 ms
     int durationMs = QRandomGenerator::global()->bounded(800, 1401);
-    emotionTimer.start(durationMs);
+    happyTimer.start(durationMs);
 }
 
 void WifeLabel::playAngry()
@@ -364,7 +519,36 @@ void WifeLabel::playAngry()
 
     // 随机 angry 时长：800–1400 ms
     int durationMs = QRandomGenerator::global()->bounded(800, 1401);
-    emotionTimer.start(durationMs);
+    happyTimer.start(durationMs);
+}
+
+void WifeLabel::playEat()
+{
+    // 注意：食物交互里会根据 manifest 播 actor_use，这里不强制播音，避免重复。
+    mainState = State::Eat;
+    playMainState();
+
+    int durationMs = QRandomGenerator::global()->bounded(800, 1401);
+    happyTimer.start(durationMs);
+}
+
+void WifeLabel::playAttack()
+{
+    // 注意：物品交互里会根据 manifest 播 actor_use / item_use，这里不强制播音，避免重复。
+    mainState = State::Attack;
+    playMainState();
+
+    int durationMs = QRandomGenerator::global()->bounded(800, 1401);
+    happyTimer.start(durationMs);
+}
+
+void WifeLabel::playDefend()
+{
+    mainState = State::Defend;
+    playMainState();
+
+    int durationMs = QRandomGenerator::global()->bounded(800, 1401);
+    happyTimer.start(durationMs);
 }
 
 void WifeLabel::playHit(int ms)
@@ -410,10 +594,11 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
         if (delta.manhattanLength() < dragThresholdPx)
             return;
         dragging = true;
+
         mainState = State::Dragging;
         audio.playRandom("dragging");
         playMainState();
-        emotionTimer.stop();
+        happyTimer.stop();
     }
 
     QPoint newPos = labelStartPos + delta;
@@ -422,6 +607,7 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
     if (!p)
     {
         move(newPos);
+        snapEquippedItems();
         return;
     }
 
@@ -441,8 +627,9 @@ void WifeLabel::mouseMoveEvent(QMouseEvent *event)
     newPos.setY(std::clamp(newPos.y(), minY, maxY));
 
     move(newPos);
+    snapEquippedItems();
 
-    const int cooldownMs = 500;
+    const int cooldownMs = 600;
     if (hitEdge && edgeHitCooldown.elapsed() > cooldownMs)
     {
         edgeHitCooldown.restart();
@@ -456,7 +643,7 @@ void WifeLabel::mouseReleaseEvent(QMouseEvent *event)
     {
         pressedLeft = false;
         dragging = false;
-        emotionTimer.stop();
+        happyTimer.stop();
         mainState = State::Idle;
         playMainState();
     }
@@ -466,14 +653,33 @@ void WifeLabel::mouseReleaseEvent(QMouseEvent *event)
 
 void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
 {
-    // 右键优先：强制结束拖动/回 idle
+    // 右键优先：强制结束拖动/回 idle（你选的 A）
     pressedLeft = false;
     dragging = false;
     mainState = State::Idle;
     playMainState();
-    emotionTimer.stop();
+    happyTimer.stop();
 
     QMenu menu(this);
+
+    // Inventory
+    QAction *inv = menu.addAction("Inventory...");
+    connect(inv, &QAction::triggered, this, [this]()
+            {
+        if (!inventoryDlg) {
+            inventoryDlg = new InventoryDialog(window());
+            inventoryDlg->setDB(&itemDB);
+            connect(inventoryDlg, &InventoryDialog::spawnRequested, this, [this](const QString& id) {
+                spawnItem(id);
+            });
+        } else {
+            // 如果物品库已刷新（未来热重载），这里可以重建 UI
+            inventoryDlg->setDB(&itemDB);
+        }
+
+        inventoryDlg->show();
+        inventoryDlg->raise();
+        inventoryDlg->activateWindow(); });
 
     // --- Interact 子菜单 ---
     QMenu *interact = menu.addMenu("Interact");
@@ -498,86 +704,46 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
 
     menu.addSeparator();
 
-    menu.addSeparator();
-
-    QAction *onTopAct = menu.addAction("Always on top");
-    onTopAct->setCheckable(true);
-
-    QSettings s("expldy", "expldy");
-    const bool onTop = s.value("ui/alwaysOnTop", false).toBool();
-    onTopAct->setChecked(onTop);
-
-    connect(onTopAct, &QAction::toggled, this, [this](bool checked)
-            {
-    QSettings s("expldy", "expldy");
-    s.setValue("ui/alwaysOnTop", checked);
-
-    QWidget* w = window();
-    if (!w) return;
-
-    Qt::WindowFlags f = w->windowFlags();
-    if (checked) f |= Qt::WindowStaysOnTopHint;
-    else         f &= ~Qt::WindowStaysOnTopHint;
-
-    w->setWindowFlags(f);
-    w->show(); });
-
     // --- Audio 子菜单：Volume / Frequency sliders ---
     QMenu *audioMenu = menu.addMenu("Audio");
 
-    // 一个小工具：创建“标题 + slider + 数字”的行
-    auto addLabeledSlider = [this, audioMenu](
-                                const QString &title,
-                                int minV, int maxV, int value,
-                                std::function<void(int)> onChanged)
+    // Volume slider
     {
-        QWidget *row = new QWidget(audioMenu);
-        auto *layout = new QHBoxLayout(row);
-        layout->setContentsMargins(8, 6, 8, 6);
-        layout->setSpacing(8);
-
-        QLabel *name = new QLabel(title, row);
-        name->setMinimumWidth(72);
-
-        QSlider *slider = new QSlider(Qt::Horizontal, row);
-        slider->setRange(minV, maxV);
-        slider->setValue(value);
-        slider->setMinimumWidth(160);
-
-        QLabel *num = new QLabel(QString::number(value), row);
-        num->setMinimumWidth(32);
-        num->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        layout->addWidget(name);
-        layout->addWidget(slider, 1);
-        layout->addWidget(num);
-
         QWidgetAction *wa = new QWidgetAction(audioMenu);
-        wa->setDefaultWidget(row);
+        QSlider *slider = new QSlider(Qt::Horizontal);
+        slider->setRange(0, 100);
+        slider->setValue(volume);
+        slider->setMinimumWidth(160);
+        wa->setDefaultWidget(slider);
         audioMenu->addAction(wa);
 
-        // 联动：显示数字 + 业务逻辑
-        connect(slider, &QSlider::valueChanged, row, [num, onChanged](int v)
+        // 立即生效一次
+        audio.setVolume01(volume / 100.0);
+
+        connect(slider, &QSlider::valueChanged, this, [this](int v)
                 {
-        num->setText(QString::number(v));
-        onChanged(v); });
+                    volume = v;
+                    saveUserSettings();
+                    audio.setVolume01(volume / 100.0); });
+    }
 
-        return slider;
-    };
+    // Frequency slider
+    {
+        QWidgetAction *wa = new QWidgetAction(audioMenu);
+        QSlider *slider = new QSlider(Qt::Horizontal);
+        slider->setRange(0, 100);
+        slider->setValue(frequency);
+        slider->setMinimumWidth(160);
+        wa->setDefaultWidget(slider);
+        audioMenu->addAction(wa);
 
-    // Volume（0-100）
-    addLabeledSlider("Volume", 0, 100, volume, [this](int v)
-                     {
-    volume = v;
-    saveUserSettings();
-    audio.setVolume01(volume / 100.0); });
-
-    // Frequency（0-100）
-    addLabeledSlider("Frequency", 0, 100, frequency, [this](int v)
-                     {
-    frequency = v;
-    saveUserSettings();
-    startOrStopIdleSwitchTimer(); });
+        connect(slider, &QSlider::valueChanged, this, [this](int v)
+                {
+                    frequency = v;
+                    saveUserSettings();
+                    // frequency 控制 idle clip 随机切换间隔
+                    startOrStopIdleSwitchTimer(); });
+    }
 
     menu.addSeparator();
 
@@ -589,34 +755,65 @@ void WifeLabel::contextMenuEvent(QContextMenuEvent *event)
     event->accept();
 }
 
-// DEBUG专用
-void WifeLabel::paintEvent(QPaintEvent* e)
+bool WifeLabel::overlapsCharacter(QWidget *item) const
 {
-    QLabel::paintEvent(e);
+    QWidget *w = window();
+    if (!w || !item)
+        return false;
 
-    if (!debugDrawBounds) return;
+    QRect charRect(mapTo(w, QPoint(0, 0)), size());
+    QRect itemRect(item->mapTo(w, QPoint(0, 0)), item->size());
+    return charRect.intersects(itemRect);
+}
 
-    QWidget* p = parentWidget();
-    if (!p) return;
+void WifeLabel::snapEquippedItems()
+{
+    QWidget *w = window();
+    if (!w)
+        return;
 
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, false);
+    const QPoint charTopLeft = mapTo(w, QPoint(0, 0));
 
-    // 画角色自身矩形（青色）
-    QPen selfPen(Qt::cyan);
-    selfPen.setWidth(2);
-    painter.setPen(selfPen);
-    painter.drawRect(rect().adjusted(1, 1, -2, -2));
+    // 没有显式设置挂点时，用“相对角色尺寸”的默认挂点。
+    // 这样 targetSize / 角色尺寸变化时，武器/盾不会飞到右下角很远。
+    const QPoint weaponAnchor = (weaponOffset.x() < 0 || weaponOffset.y() < 0)
+                                   ? QPoint(int(width() * 0.72), int(height() * 0.60))
+                                   : weaponOffset;
+    const QPoint shieldAnchor = (shieldOffset.x() < 0 || shieldOffset.y() < 0)
+                                   ? QPoint(int(width() * 0.30), int(height() * 0.62))
+                                   : shieldOffset;
 
-    // 写关键数值
-    const int maxX = p->width()  - width();
-    const int maxY = p->height() - height();
+    if (equippedWeapon)
+    {
+        equippedWeapon->move(charTopLeft + weaponAnchor - QPoint(equippedWeapon->width() / 2, equippedWeapon->height() / 2));
+        equippedWeapon->raise();
+    }
+    if (equippedShield)
+    {
+        equippedShield->move(charTopLeft + shieldAnchor - QPoint(equippedShield->width() / 2, equippedShield->height() / 2));
+        equippedShield->raise();
+    }
+}
 
-    painter.setPen(Qt::black);
-    painter.drawText(10, 20,
-        QString("pos=(%1,%2) size=%3x%4 max=(%5,%6)")
-            .arg(x()).arg(y())
-            .arg(width()).arg(height())
-            .arg(maxX).arg(maxY)
-    );
+void WifeLabel::equip(ItemWidget *item, ItemType type)
+{
+    if (!item)
+        return;
+
+    item->setEquipped(true);
+
+    if (type == ItemType::Weapon)
+    {
+        if (equippedWeapon && equippedWeapon != item)
+            equippedWeapon->deleteLater();
+        equippedWeapon = item;
+    }
+    else if (type == ItemType::Shield)
+    {
+        if (equippedShield && equippedShield != item)
+            equippedShield->deleteLater();
+        equippedShield = item;
+    }
+
+    snapEquippedItems();
 }

@@ -1,0 +1,13 @@
+{
+  "name": "Sword",
+  "type": "Weapon",
+  "tags": ["attackable"],
+  "frame_interval_ms": 120,
+  "audio": {
+    "actor_use": "attack",
+    "item_use": "sword_swing"
+  },
+  "stats": {
+    "damage": 5
+  }
+}

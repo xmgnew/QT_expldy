@@ -1,0 +1,13 @@
+{
+  "name": "Apple",
+  "type": "food",
+  "tags": ["edible"],
+  "frame_interval_ms": 120,
+  "audio": {
+    "actor_use": "eat",
+    "item_use": "food_use"
+  },
+  "stats": {
+    "heal": 5
+  }
+}

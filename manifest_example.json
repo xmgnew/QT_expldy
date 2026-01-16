@@ -1,0 +1,12 @@
+{
+  "id": "apple",
+  "name": "Apple",
+  "type": "food",
+  "tags": ["edible"],
+  "audio": {
+    "use": "eat"
+  },
+  "stats": {
+    "heal": 5
+  }
+}

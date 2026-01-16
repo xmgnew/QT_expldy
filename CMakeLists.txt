@@ -25,9 +25,17 @@ qt_add_executable(expldy
     wifelabel.h
     audiomanager.h
     audiomanager.cpp
+    inventorydialog.h
+    inventorydialog.cpp
+    itemwidget.h
+    itemwidget.cpp
+    itemdb.h
+    itemdb.cpp
+    animateditembutton.h
+    animateditembutton.cpp
 )
 
-# ✅ 关键修复：把 Multimedia 链接进来
+# 把 Multimedia 链接进来
 target_link_libraries(expldy PRIVATE
     Qt6::Widgets
     Qt6::Multimedia
